@@ -62,6 +62,9 @@ local artillery_outposts = {index = 1}
 local outpost_count = 0
 local pollution_multiplier = {value = 0}
 
+local FORCE_NAME_OUTPOSTS = 'outposts'
+local FORCE_NAME_PLAYER = 'player'
+
 Global.register(
     {
         refil_turrets = refill_turrets,
@@ -1477,7 +1480,7 @@ Public.magic_item_crafting_callback =
         entity.minable = false
         entity.destructible = false
         entity.operable = false
-        entity.force = 'player'
+        entity.force = FORCE_NAME_OUTPOSTS
 
         local recipe = callback_data.recipe
         if recipe then
@@ -1523,7 +1526,7 @@ Public.magic_item_crafting_callback_weighted =
         entity.minable = false
         entity.destructible = false
         entity.operable = false
-        entity.force = 'player'
+        entity.force = FORCE_NAME_OUTPOSTS
 
         local weights = callback_data.weights
         local loot = callback_data.loot
@@ -1798,7 +1801,7 @@ function Public.do_random_fluid_loot(entity, weights, loot)
 
     entity.operable = false
     entity.destructible = false
-    entity.force = 'player'
+    entity.force = FORCE_NAME_OUTPOSTS
 
     local i = math.random() * weights.total
 
@@ -1834,7 +1837,7 @@ function Public.do_factory_loot(entity, weights, loot)
 
     entity.operable = false
     entity.destructible = false
-    entity.force = 'player'
+    entity.force = FORCE_NAME_OUTPOSTS
 
     local i = math.random() * weights.total
 
@@ -1920,7 +1923,9 @@ Event.add(defines.events.on_entity_died, turret_died)
 
 Event.on_init(
     function()
-        game.forces.neutral.recipes['steel-plate'].enabled = true
+        game.create_force(FORCE_NAME_OUTPOSTS)
+        game.forces[FORCE_NAME_OUTPOSTS].recipes['steel-plate'].enabled = true
+        game.forces[FORCE_NAME_OUTPOSTS].set_friend(FORCE_NAME_PLAYER, true)
     end
 )
 
