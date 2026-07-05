@@ -126,17 +126,6 @@ function M.adjacency(grid, size)
     return neighbors
 end
 
--- Fisher-Yates shuffle of 1..n using the injected random.
-local function shuffled_range(n, random)
-    local a = {}
-    for i = 1, n do a[i] = i end
-    for i = n, 2, -1 do
-        local j = random(i)
-        a[i], a[j] = a[j], a[i]
-    end
-    return a
-end
-
 -- Complete graph coloring via dynamic DSATUR vertex ordering + backtracking.
 -- Returns colors[id] = 1..num_colors (no two adjacent pieces equal) or nil if impossible.
 -- Color trial order prefers the least-used color so far to balance ore distribution;
