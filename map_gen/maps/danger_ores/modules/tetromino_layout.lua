@@ -1,4 +1,4 @@
--- Pure-Lua layout generator for the Danger Ores "Jigsaw" map.
+-- Pure-Lua layout generator for the Danger Ores "Tetrominoes" map.
 -- ZERO Factorio dependencies: unit-testable with a standalone Lua interpreter.
 -- All randomness is injected via `random(n) -> integer in [1, n]`, so the caller
 -- owns the seed (the Factorio builder passes the map-seeded generator; tests pass
@@ -325,7 +325,7 @@ function M.generate(opts)
             return ore_grid
         end
     end
-    error('jigsaw_layout: could not ' .. num_ores .. '-color the packing after '
+    error('tetromino_layout: could not ' .. num_ores .. '-color the packing after '
         .. max_attempts .. ' attempts')
 end
 

@@ -1,6 +1,6 @@
 -- Tetromino palette for the Danger Ores "Tetrominoes" map.
 -- Each shape is a list of {dx, dy} chunk offsets. Rotations and reflections are
--- generated in code (see jigsaw_layout.orientations), so mirror pieces (J, Z) are
+-- generated in code (see tetromino_layout.orientations), so mirror pieces (J, Z) are
 -- NOT listed here to avoid double-weighting. The packer tiles with these tetrominoes
 -- only (no gaps, no smaller pieces).
 return {

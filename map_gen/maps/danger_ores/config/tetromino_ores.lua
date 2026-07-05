@@ -2,7 +2,7 @@ local b = require 'map_gen.shared.builders'
 local start_value = b.euclidean_value(0, 0.35)
 local value = b.exponential_value(0, 0.07, 1.45)
 
--- Order is significant: it maps to ore indices 1..4 produced by jigsaw_layout.
+-- Order is significant: it maps to ore indices 1..4 produced by tetromino_layout.
 return {
     {
         name = 'iron-ore',

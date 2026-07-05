@@ -1,8 +1,8 @@
--- Standalone unit tests for the pure Jigsaw layout algorithm.
--- Run from the repo root:  lua map_gen/maps/danger_ores/modules/jigsaw_layout.test.lua
+-- Standalone unit tests for the pure Tetrominoes layout algorithm.
+-- Run from the repo root:  lua map_gen/maps/danger_ores/modules/tetromino_layout.test.lua
 package.path = './?.lua;' .. package.path
 
-local Layout = require 'map_gen.maps.danger_ores.modules.jigsaw_layout'
+local Layout = require 'map_gen.maps.danger_ores.modules.tetromino_layout'
 
 local failures = 0
 local function check(cond, msg)
@@ -22,7 +22,7 @@ local l_shape = Layout.orientations({ {0, 0}, {0, 1}, {0, 2}, {1, 2} })
 check(#l_shape == 8, 'L has 8 unique orientations, got ' .. #l_shape)
 
 -- Build the flat oriented palette used by packing/generate.
-local palette = require 'map_gen.maps.danger_ores.config.jigsaw_shapes'
+local palette = require 'map_gen.maps.danger_ores.config.tetromino_shapes'
 local function oriented_palette()
     local oriented = {}
     for _, s in ipairs(palette) do

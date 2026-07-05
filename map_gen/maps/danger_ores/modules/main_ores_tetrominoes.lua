@@ -1,6 +1,6 @@
 local b = require 'map_gen.shared.builders'
-local Layout = require 'map_gen.maps.danger_ores.modules.jigsaw_layout'
-local palette = require 'map_gen.maps.danger_ores.config.jigsaw_shapes'
+local Layout = require 'map_gen.maps.danger_ores.modules.tetromino_layout'
+local palette = require 'map_gen.maps.danger_ores.config.tetromino_shapes'
 
 local floor = math.floor
 
@@ -27,13 +27,13 @@ return function(config)
             random = random_gen,
         }
 
-        local function jigsaw(x, y, world)
+        local function tetrominoes(x, y, world)
             local cx = floor(x / CHUNK_SIZE) % SUPER_TILE
             local cy = floor(y / CHUNK_SIZE) % SUPER_TILE
             local index = ore_grid[cx][cy]
             return shapes[index](x, y, world)
         end
 
-        return b.any { spawn_shape, water_shape, jigsaw }
+        return b.any { spawn_shape, water_shape, tetrominoes }
     end
 end
