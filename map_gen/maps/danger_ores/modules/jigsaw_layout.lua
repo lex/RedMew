@@ -126,12 +126,12 @@ function M.adjacency(grid, size)
     return neighbors
 end
 
--- Complete graph coloring via dynamic DSATUR with incremental saturation + backtracking.
+-- Complete graph coloring via dynamic DSATUR (incremental saturation) + backtracking.
 -- Returns colors[id] = 1..num_colors (no two adjacent pieces equal) or nil if impossible.
--- Saturation and per-color neighbour counts are maintained incrementally (updated only for
--- the neighbours of the vertex just (un)coloured), so vertex selection is cheap. Color trial
--- order prefers the least-used color so far to balance ore distribution; ties in vertex
--- selection break by degree then the injected random for per-seed variety.
+-- Colors are tried in a per-seed fixed random preference order: a STATIC order keeps the
+-- backtracking near-linear (a dynamic least-used order caused pathological search), while
+-- randomizing it once per seed varies which ore ends up dominant. Vertex selection is a
+-- deterministic DSATUR (max saturation, tie-break by degree then lowest id).
 function M.color(count, neighbors, num_colors, random)
     local adj = {}
     local deg = {}
@@ -145,6 +145,14 @@ function M.color(count, neighbors, num_colors, random)
         deg[id] = #a
     end
 
+    -- per-seed fixed color preference (a static random permutation of 1..num_colors)
+    local pref = {}
+    for c = 1, num_colors do pref[c] = c end
+    for i = num_colors, 2, -1 do
+        local j = random(i)
+        pref[i], pref[j] = pref[j], pref[i]
+    end
+
     local colors = {}   -- id -> color, or nil
     local sat = {}      -- id -> number of distinct colors among its coloured neighbours
     local ncolor = {}   -- id -> { [c] = number of neighbours currently coloured c }
@@ -154,17 +162,16 @@ function M.color(count, neighbors, num_colors, random)
         for c = 1, num_colors do t[c] = 0 end
         ncolor[id] = t
     end
-    local used = {}     -- color -> times used (for ore balance)
-    for c = 1, num_colors do used[c] = 0 end
 
     local uncolored = count
-    local SAFETY = 3000000 -- backtracking node ceiling (~1000x the near-linear DSATUR solve
-                           -- observed at size 32); fail-closed to nil so generate() retries.
+    -- Backtracking node ceiling. With the static DSATUR order the solve is near-linear
+    -- (< ~1000 nodes for a ~400-piece size-32 super-tile), so this is a generous safety
+    -- net; it fails closed to nil, letting generate() re-pack rather than freezing.
+    local SAFETY = 200000
     local nodes = 0
 
     local function assign(id, c)
         colors[id] = c
-        used[c] = used[c] + 1
         uncolored = uncolored - 1
         for _, o in ipairs(adj[id]) do
             if colors[o] == nil then
@@ -184,7 +191,6 @@ function M.color(count, neighbors, num_colors, random)
             end
         end
         colors[id] = nil
-        used[c] = used[c] - 1
         uncolored = uncolored + 1
     end
 
@@ -194,9 +200,7 @@ function M.color(count, neighbors, num_colors, random)
             if colors[id] == nil then
                 local s = sat[id]
                 local d = deg[id]
-                if s > best_sat
-                    or (s == best_sat and d > best_deg)
-                    or (s == best_sat and d == best_deg and random(2) == 1) then
+                if s > best_sat or (s == best_sat and d > best_deg) then
                     best, best_sat, best_deg = id, s, d
                 end
             end
@@ -210,15 +214,12 @@ function M.color(count, neighbors, num_colors, random)
         if nodes > SAFETY then return false end
         local id = pick()
         local nc = ncolor[id]
-        local candidates = {}
-        for c = 1, num_colors do
-            if nc[c] == 0 then candidates[#candidates + 1] = c end
-        end
-        sort(candidates, function(a, b) return used[a] < used[b] end)
-        for _, c in ipairs(candidates) do
-            assign(id, c)
-            if solve() then return true end
-            unassign(id, c)
+        for _, c in ipairs(pref) do
+            if nc[c] == 0 then
+                assign(id, c)
+                if solve() then return true end
+                unassign(id, c)
+            end
         end
         return false
     end
