@@ -106,4 +106,113 @@ function M.pack(size, oriented, random)
     return grid, id
 end
 
+-- neighbors[id] = { other_id = true, ... } over the torus (4-adjacency).
+function M.adjacency(grid, size)
+    local neighbors = {}
+    local function link(a, b)
+        if a == b then return end
+        neighbors[a] = neighbors[a] or {}
+        neighbors[b] = neighbors[b] or {}
+        neighbors[a][b] = true
+        neighbors[b][a] = true
+    end
+    for x = 0, size - 1 do
+        for y = 0, size - 1 do
+            local id = grid[x][y]
+            link(id, grid[(x + 1) % size][y])
+            link(id, grid[x][(y + 1) % size])
+        end
+    end
+    return neighbors
+end
+
+-- Fisher-Yates shuffle of 1..n using the injected random.
+local function shuffled_range(n, random)
+    local a = {}
+    for i = 1, n do a[i] = i end
+    for i = n, 2, -1 do
+        local j = random(i)
+        a[i], a[j] = a[j], a[i]
+    end
+    return a
+end
+
+-- Backtracking graph coloring. Returns colors[id] = 1..num_colors (no adjacent pair
+-- equal) or nil if impossible. Color trial order is randomized per piece for balance.
+function M.color(count, neighbors, num_colors, random)
+    local degree = {}
+    for i = 1, count do
+        local n = 0
+        if neighbors[i] then
+            for _ in pairs(neighbors[i]) do n = n + 1 end
+        end
+        degree[i] = n
+    end
+    local order = {}
+    for i = 1, count do order[i] = i end
+    sort(order, function(a, b) return degree[a] > degree[b] end)
+
+    local colors = {}
+    local call_count = 0
+    local MAX_CALLS = 1000000  -- bail out if backtracking takes too long
+    local function solve(i)
+        call_count = call_count + 1
+        if call_count > MAX_CALLS then return false end
+        if i > count then return true end
+        local id = order[i]
+        local trial = shuffled_range(num_colors, random)
+        local nb = neighbors[id]
+        for _, c in ipairs(trial) do
+            local ok = true
+            if nb then
+                for other in pairs(nb) do
+                    if colors[other] == c then ok = false break end
+                end
+            end
+            if ok then
+                colors[id] = c
+                if solve(i + 1) then return true end
+                colors[id] = nil
+            end
+        end
+        return false
+    end
+
+    if solve(1) then return colors end
+    return nil
+end
+
+-- Pack + color, retrying with fresh randomness until a clean coloring exists.
+function M.generate(opts)
+    local size = opts.size
+    local num_ores = opts.num_ores
+    local random = opts.random
+    local max_attempts = opts.max_attempts or 8
+
+    local oriented = {}
+    for _, shape in ipairs(opts.palette) do
+        for _, variant in ipairs(M.orientations(shape)) do
+            oriented[#oriented + 1] = variant
+        end
+    end
+
+    for _ = 1, max_attempts do
+        local grid, count = M.pack(size, oriented, random)
+        local neighbors = M.adjacency(grid, size)
+        local colors = M.color(count, neighbors, num_ores, random)
+        if colors then
+            local ore_grid = {}
+            for x = 0, size - 1 do
+                ore_grid[x] = {}
+                for y = 0, size - 1 do
+                    ore_grid[x][y] = colors[grid[x][y]]
+                end
+            end
+            return ore_grid
+        end
+    end
+    error('jigsaw_layout: could not ' .. num_ores .. '-color the packing after '
+        .. max_attempts .. ' attempts')
+end
+
 return M

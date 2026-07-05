@@ -59,6 +59,45 @@ for x = 0, PSIZE - 1 do
 end
 check(identical, 'pack is deterministic for a fixed random sequence')
 
+-- clean borders: adjacent cells from DIFFERENT pieces must get DIFFERENT ores
+-- (including across the torus wrap).
+math.randomseed(42)
+local cg, ccount = Layout.pack(PSIZE, oriented, rand)
+local nb = Layout.adjacency(cg, PSIZE)
+local colors = Layout.color(ccount, nb, 4, rand)
+check(colors ~= nil, 'color returns a valid 4-coloring')
+if colors then
+    local bad = 0
+    for x = 0, PSIZE - 1 do
+        for y = 0, PSIZE - 1 do
+            local id = cg[x][y]
+            local right = cg[(x + 1) % PSIZE][y]
+            local down = cg[x][(y + 1) % PSIZE]
+            if right ~= id and colors[right] == colors[id] then bad = bad + 1 end
+            if down ~= id and colors[down] == colors[id] then bad = bad + 1 end
+        end
+    end
+    check(bad == 0, 'no two touching pieces share an ore (incl. wrap), violations=' .. bad)
+end
+
+-- generate: deterministic per seed.
+math.randomseed(7)
+local a = Layout.generate { size = 16, palette = palette, num_ores = 4, random = rand }
+math.randomseed(7)
+local b = Layout.generate { size = 16, palette = palette, num_ores = 4, random = rand }
+local same = true
+for x = 0, 15 do for y = 0, 15 do if a[x][y] ~= b[x][y] then same = false end end end
+check(same, 'generate is deterministic for a fixed seed')
+
+-- generate: different seeds produce different layouts.
+math.randomseed(1)
+local c1 = Layout.generate { size = 16, palette = palette, num_ores = 4, random = rand }
+math.randomseed(2)
+local c2 = Layout.generate { size = 16, palette = palette, num_ores = 4, random = rand }
+local diff = false
+for x = 0, 15 do for y = 0, 15 do if c1[x][y] ~= c2[x][y] then diff = true end end end
+check(diff, 'different seeds produce different layouts')
+
 if failures == 0 then
     print('\nALL PASSED')
 else
