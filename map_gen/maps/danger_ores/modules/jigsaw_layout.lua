@@ -51,4 +51,59 @@ function M.orientations(shape)
     return variants
 end
 
+-- Does `cells` placed at (ox,oy) fit on the torus (all target cells empty)?
+local function fits(grid, size, cells, ox, oy)
+    for _, c in ipairs(cells) do
+        local x = (ox + c[1]) % size
+        local y = (oy + c[2]) % size
+        if grid[x][y] ~= 0 then return false end
+    end
+    return true
+end
+
+local function stamp(grid, size, cells, ox, oy, id)
+    for _, c in ipairs(cells) do
+        local x = (ox + c[1]) % size
+        local y = (oy + c[2]) % size
+        grid[x][y] = id
+    end
+end
+
+-- Pack a size x size torus with pieces from `oriented`.
+-- Returns grid[x][y] = piece id (1..count) and the piece count.
+function M.pack(size, oriented, random)
+    local TRIES = 6 -- random placement attempts per empty cell before the monomino fallback
+    local grid = {}
+    for x = 0, size - 1 do
+        grid[x] = {}
+        for y = 0, size - 1 do grid[x][y] = 0 end
+    end
+    local id = 0
+    local filled = true
+    while filled do
+        filled = false
+        for x = 0, size - 1 do
+            for y = 0, size - 1 do
+                if grid[x][y] == 0 then
+                    filled = true
+                    id = id + 1
+                    local placed = false
+                    for _ = 1, TRIES do
+                        local cells = oriented[random(#oriented)]
+                        if fits(grid, size, cells, x, y) then
+                            stamp(grid, size, cells, x, y, id)
+                            placed = true
+                            break
+                        end
+                    end
+                    if not placed then
+                        grid[x][y] = id -- current cell is empty, so a single cell always fits
+                    end
+                end
+            end
+        end
+    end
+    return grid, id
+end
+
 return M
