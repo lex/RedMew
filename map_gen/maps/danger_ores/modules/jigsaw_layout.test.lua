@@ -98,6 +98,44 @@ local diff = false
 for x = 0, 15 do for y = 0, 15 do if c1[x][y] ~= c2[x][y] then diff = true end end end
 check(diff, 'different seeds produce different layouts')
 
+-- Production-size guard (the real map uses a 32-chunk super-tile).
+do
+    local PROD = 32
+    local ok_count = 0
+    for seed = 1, 25 do
+        math.randomseed(seed)
+        local ok = pcall(function()
+            return Layout.generate { size = PROD, palette = palette, num_ores = 4, random = rand }
+        end)
+        if ok then ok_count = ok_count + 1 end
+    end
+    check(ok_count == 25, 'generate succeeds for all 25 seeds at production size 32, got ' .. ok_count)
+
+    -- clean borders + all 4 ores at size 32, tested at pack+color level
+    math.randomseed(3)
+    local g32, c32 = Layout.pack(PROD, oriented, rand)
+    local nb32 = Layout.adjacency(g32, PROD)
+    local col32 = Layout.color(c32, nb32, 4, rand)
+    check(col32 ~= nil, 'color succeeds at size 32')
+    if col32 then
+        local bad, palette_seen = 0, {}
+        for x = 0, PROD - 1 do
+            for y = 0, PROD - 1 do
+                local id = g32[x][y]
+                palette_seen[col32[id]] = true
+                local right = g32[(x + 1) % PROD][y]
+                local down = g32[x][(y + 1) % PROD]
+                if right ~= id and col32[right] == col32[id] then bad = bad + 1 end
+                if down ~= id and col32[down] == col32[id] then bad = bad + 1 end
+            end
+        end
+        check(bad == 0, 'no two touching pieces share an ore at size 32, violations=' .. bad)
+        local ore_types = 0
+        for _ in pairs(palette_seen) do ore_types = ore_types + 1 end
+        check(ore_types == 4, 'all 4 ores present at size 32, got ' .. ore_types)
+    end
+end
+
 if failures == 0 then
     print('\nALL PASSED')
 else

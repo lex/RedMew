@@ -137,48 +137,80 @@ local function shuffled_range(n, random)
     return a
 end
 
--- Backtracking graph coloring. Returns colors[id] = 1..num_colors (no adjacent pair
--- equal) or nil if impossible. Color trial order is randomized per piece for balance.
+-- Complete graph coloring via dynamic DSATUR vertex ordering + backtracking.
+-- Returns colors[id] = 1..num_colors (no two adjacent pieces equal) or nil if impossible.
+-- Color trial order prefers the least-used color so far to balance ore distribution;
+-- ties in vertex selection are broken with the injected random for per-seed variety.
 function M.color(count, neighbors, num_colors, random)
-    local degree = {}
-    for i = 1, count do
-        local n = 0
-        if neighbors[i] then
-            for _ in pairs(neighbors[i]) do n = n + 1 end
+    local adj = {}
+    for id = 1, count do
+        adj[id] = {}
+        local nb = neighbors[id]
+        if nb then
+            for o in pairs(nb) do adj[id][#adj[id] + 1] = o end
         end
-        degree[i] = n
     end
-    local order = {}
-    for i = 1, count do order[i] = i end
-    sort(order, function(a, b) return degree[a] > degree[b] end)
 
     local colors = {}
-    local call_count = 0
-    local MAX_CALLS = 1000000  -- bail out if backtracking takes too long
-    local function solve(i)
-        call_count = call_count + 1
-        if call_count > MAX_CALLS then return false end
-        if i > count then return true end
-        local id = order[i]
-        local trial = shuffled_range(num_colors, random)
-        local nb = neighbors[id]
-        for _, c in ipairs(trial) do
-            local ok = true
-            if nb then
-                for other in pairs(nb) do
-                    if colors[other] == c then ok = false break end
+    local used = {}
+    for c = 1, num_colors do used[c] = 0 end
+    local uncolored = count
+    local SAFETY = 3000000
+    local nodes = 0
+
+    -- pick the uncolored vertex with the highest saturation (distinct neighbor colors),
+    -- breaking ties by degree, then randomly.
+    local function pick()
+        local best, best_sat, best_deg = nil, -1, -1
+        for id = 1, count do
+            if colors[id] == nil then
+                local seen = {}
+                local sat = 0
+                for _, o in ipairs(adj[id]) do
+                    local c = colors[o]
+                    if c and not seen[c] then
+                        seen[c] = true
+                        sat = sat + 1
+                    end
+                end
+                local deg = #adj[id]
+                if sat > best_sat
+                    or (sat == best_sat and deg > best_deg)
+                    or (sat == best_sat and deg == best_deg and random(2) == 1) then
+                    best, best_sat, best_deg = id, sat, deg
                 end
             end
-            if ok then
-                colors[id] = c
-                if solve(i + 1) then return true end
-                colors[id] = nil
+        end
+        return best
+    end
+
+    local function solve()
+        if uncolored == 0 then return true end
+        nodes = nodes + 1
+        if nodes > SAFETY then return false end
+        local id = pick()
+        local candidates = {}
+        for c = 1, num_colors do
+            local ok = true
+            for _, o in ipairs(adj[id]) do
+                if colors[o] == c then ok = false break end
             end
+            if ok then candidates[#candidates + 1] = c end
+        end
+        sort(candidates, function(a, b) return used[a] < used[b] end)
+        for _, c in ipairs(candidates) do
+            colors[id] = c
+            used[c] = used[c] + 1
+            uncolored = uncolored - 1
+            if solve() then return true end
+            colors[id] = nil
+            used[c] = used[c] - 1
+            uncolored = uncolored + 1
         end
         return false
     end
 
-    if solve(1) then return colors end
+    if solve() then return colors end
     return nil
 end
 
