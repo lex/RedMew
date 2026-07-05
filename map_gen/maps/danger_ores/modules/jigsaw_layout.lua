@@ -3,6 +3,10 @@
 -- All randomness is injected via `random(n) -> integer in [1, n]`, so the caller
 -- owns the seed (the Factorio builder passes the map-seeded generator; tests pass
 -- math.random).
+--
+-- Packing produces ONLY valid tetrominoes (I/O/T/S/Z/L/J) with no gaps, by seeding a
+-- trivial 2x4-block tiling and then randomizing it with local 2x4/4x2 flips (a standard
+-- approach for random tilings -- brute-force exact cover is intractable at this size).
 local sort = table.sort
 local concat = table.concat
 
@@ -51,103 +55,116 @@ function M.orientations(shape)
     return variants
 end
 
--- Does `cells` placed at (ox,oy) fit on the torus (all target cells empty)?
-local function fits(grid, size, cells, ox, oy)
-    for _, c in ipairs(cells) do
-        local x = (ox + c[1]) % size
-        local y = (oy + c[2]) % size
-        if grid[x][y] ~= 0 then return false end
+-- Enumerate every way to tile a w x h rectangle with tetrominoes. `tetros_rel` is a list of
+-- tetromino orientations, each as offsets relative to its scan-leading cell (offset {0,0}).
+-- w*h is tiny (8), so this exhaustive DFS is instant. Returns a list of tilings; each tiling
+-- is a list of pieces; each piece a list of {x,y} cells within the rectangle.
+local function enumerate(w, h, tetros_rel)
+    local g = {}
+    for x = 0, w - 1 do g[x] = {}; for y = 0, h - 1 do g[x][y] = 0 end end
+    local sols, cur = {}, {}
+    local function first_empty()
+        for x = 0, w - 1 do for y = 0, h - 1 do if g[x][y] == 0 then return x, y end end end
     end
-    return true
+    local function rec()
+        local x, y = first_empty()
+        if not x then
+            local snap = {}
+            for _, piece in ipairs(cur) do
+                local cc = {}
+                for _, c in ipairs(piece) do cc[#cc + 1] = { c[1], c[2] } end
+                snap[#snap + 1] = cc
+            end
+            sols[#sols + 1] = snap
+            return
+        end
+        for _, rel in ipairs(tetros_rel) do
+            local placed, ok = {}, true
+            for _, c in ipairs(rel) do
+                local px, py = x + c[1], y + c[2]
+                if px < 0 or px >= w or py < 0 or py >= h or g[px][py] ~= 0 then
+                    ok = false
+                    break
+                end
+                placed[#placed + 1] = { px, py }
+            end
+            if ok then
+                for _, p in ipairs(placed) do g[p[1]][p[2]] = 1 end
+                cur[#cur + 1] = placed
+                rec()
+                cur[#cur] = nil
+                for _, p in ipairs(placed) do g[p[1]][p[2]] = 0 end
+            end
+        end
+    end
+    rec()
+    return sols
 end
 
-local function stamp(grid, size, cells, ox, oy, id)
-    for _, c in ipairs(cells) do
-        local x = (ox + c[1]) % size
-        local y = (oy + c[2]) % size
-        grid[x][y] = id
-    end
-end
-
--- Pack a size x size torus with pieces from `oriented`.
+-- Pack a size x size torus entirely with tetrominoes (size must be a multiple of 4).
 -- Returns grid[x][y] = piece id (1..count) and the piece count.
 function M.pack(size, oriented, random)
-    local TRIES = 6 -- random placement attempts per empty cell before the monomino fallback
-    local grid = {}
-    for x = 0, size - 1 do
-        grid[x] = {}
-        for y = 0, size - 1 do grid[x][y] = 0 end
+    -- tetromino orientations only, as offsets relative to the scan-leading cell
+    local tetros_rel = {}
+    for _, cells in ipairs(oriented) do
+        if #cells == 4 then
+            local bx, by = cells[1][1], cells[1][2]
+            local rel = {}
+            for _, c in ipairs(cells) do rel[#rel + 1] = { c[1] - bx, c[2] - by } end
+            tetros_rel[#tetros_rel + 1] = rel
+        end
     end
-    local id = 0
-    local filled = true
-    while filled do
-        filled = false
-        for x = 0, size - 1 do
-            for y = 0, size - 1 do
-                if grid[x][y] == 0 then
-                    filled = true
-                    id = id + 1
-                    local placed = false
-                    for _ = 1, TRIES do
-                        local cells = oriented[random(#oriented)]
-                        if fits(grid, size, cells, x, y) then
-                            stamp(grid, size, cells, x, y, id)
-                            placed = true
-                            break
-                        end
-                    end
-                    if not placed then
-                        grid[x][y] = id -- current cell is empty, so a single cell always fits
-                    end
-                end
+    local decomp24 = enumerate(2, 4, tetros_rel)
+    local decomp42 = enumerate(4, 2, tetros_rel)
+
+    local grid = {}
+    for x = 0, size - 1 do grid[x] = {}; for y = 0, size - 1 do grid[x][y] = 0 end end
+    local nid = 0
+
+    -- Base tiling: fill 2x4 blocks, each with a random valid 2-tetromino decomposition.
+    for bx = 0, size - 1, 2 do
+        for by = 0, size - 1, 4 do
+            local d = decomp24[random(#decomp24)]
+            for _, piece in ipairs(d) do
+                nid = nid + 1
+                for _, c in ipairs(piece) do grid[(bx + c[1]) % size][(by + c[2]) % size] = nid end
             end
         end
     end
 
-    -- Dissolve stray single-chunk pieces (monominoes): merge each into an orthogonally
-    -- adjacent piece so no lone 1x1 squares remain. A monomino's four neighbours all
-    -- belong to other pieces, so a merge target always exists. Deterministic (no random);
-    -- re-coloring later keeps borders clean.
-    local size_of = {}
-    for pid = 1, id do size_of[pid] = 0 end
-    for x = 0, size - 1 do
-        for y = 0, size - 1 do
-            size_of[grid[x][y]] = size_of[grid[x][y]] + 1
-        end
-    end
-    for x = 0, size - 1 do
-        for y = 0, size - 1 do
-            local pid = grid[x][y]
-            if size_of[pid] == 1 then
-                local neigh = {
-                    grid[(x + 1) % size][y], grid[(x - 1) % size][y],
-                    grid[x][(y + 1) % size], grid[x][(y - 1) % size],
-                }
-                for _, other in ipairs(neigh) do
-                    if other ~= pid then
-                        grid[x][y] = other
-                        size_of[other] = size_of[other] + 1
-                        size_of[pid] = 0
-                        break
-                    end
-                end
+    -- Local flip shuffling: repeatedly pick a 2x4 or 4x2 window; if it currently holds
+    -- exactly two whole tetrominoes, re-tile it with a random decomposition. This mixes the
+    -- rigid base grid into an organic layout while staying a valid tetromino tiling.
+    local function try_flip(w, h, decomps)
+        local x, y = random(size) - 1, random(size) - 1
+        local counts, order = {}, {}
+        for i = 0, w - 1 do
+            for j = 0, h - 1 do
+                local id = grid[(x + i) % size][(y + j) % size]
+                if not counts[id] then counts[id] = 0; order[#order + 1] = id end
+                counts[id] = counts[id] + 1
             end
         end
+        if #order ~= 2 or counts[order[1]] ~= 4 or counts[order[2]] ~= 4 then return end
+        local d = decomps[random(#decomps)]
+        for _, piece in ipairs(d) do
+            nid = nid + 1
+            for _, c in ipairs(piece) do grid[(x + c[1]) % size][(y + c[2]) % size] = nid end
+        end
+    end
+
+    local passes = size * size * 80
+    for _ = 1, passes do
+        if random(2) == 1 then try_flip(2, 4, decomp24) else try_flip(4, 2, decomp42) end
     end
 
     -- Renumber surviving piece ids to a contiguous 1..count range.
-    local remap = {}
-    local count = 0
+    local remap, count = {}, 0
     for x = 0, size - 1 do
         for y = 0, size - 1 do
-            local pid = grid[x][y]
-            local new = remap[pid]
-            if not new then
-                count = count + 1
-                new = count
-                remap[pid] = new
-            end
-            grid[x][y] = new
+            local id = grid[x][y]
+            if not remap[id] then count = count + 1; remap[id] = count end
+            grid[x][y] = remap[id]
         end
     end
     return grid, count
@@ -175,11 +192,10 @@ end
 
 -- Complete graph coloring via dynamic DSATUR (incremental saturation) + backtracking.
 -- Returns colors[id] = 1..num_colors (no two adjacent pieces equal) or nil if impossible.
--- Colors are tried in a per-seed fixed random preference order: a STATIC order keeps the
--- backtracking near-linear (a dynamic least-used order caused pathological search), while
--- randomizing it once per seed varies which ore ends up dominant. Vertex selection is a
--- deterministic DSATUR (max saturation, tie-break by degree then lowest id).
-function M.color(count, neighbors, num_colors, random)
+-- Colors are tried lowest-first, so the highest color index is used only when forced --
+-- generate() maps that rarest color to the last ore (stone), keeping sand scarce. A static
+-- (non-adaptive) trial order also keeps the backtracking near-linear.
+function M.color(count, neighbors, num_colors)
     local adj = {}
     local deg = {}
     for id = 1, count do
@@ -190,14 +206,6 @@ function M.color(count, neighbors, num_colors, random)
         end
         adj[id] = a
         deg[id] = #a
-    end
-
-    -- per-seed fixed color preference (a static random permutation of 1..num_colors)
-    local pref = {}
-    for c = 1, num_colors do pref[c] = c end
-    for i = num_colors, 2, -1 do
-        local j = random(i)
-        pref[i], pref[j] = pref[j], pref[i]
     end
 
     local colors = {}   -- id -> color, or nil
@@ -211,9 +219,8 @@ function M.color(count, neighbors, num_colors, random)
     end
 
     local uncolored = count
-    -- Backtracking node ceiling. With the static DSATUR order the solve is near-linear
-    -- (< ~1000 nodes for a ~400-piece size-32 super-tile), so this is a generous safety
-    -- net; it fails closed to nil, letting generate() re-pack rather than freezing.
+    -- Backtracking node ceiling. With the static DSATUR order the solve is near-linear, so
+    -- this is a generous safety net; it fails closed to nil, letting generate() re-pack.
     local SAFETY = 200000
     local nodes = 0
 
@@ -261,7 +268,7 @@ function M.color(count, neighbors, num_colors, random)
         if nodes > SAFETY then return false end
         local id = pick()
         local nc = ncolor[id]
-        for _, c in ipairs(pref) do
+        for c = 1, num_colors do
             if nc[c] == 0 then
                 assign(id, c)
                 if solve() then return true end
@@ -275,7 +282,8 @@ function M.color(count, neighbors, num_colors, random)
     return nil
 end
 
--- Pack + color, retrying with fresh randomness until a clean coloring exists.
+-- Pack + color, retrying with fresh randomness until a clean coloring exists. Returns
+-- ore_grid[x][y] = ore index in 1..num_ores (0-based x,y in [0,size-1]).
 function M.generate(opts)
     local size = opts.size
     local num_ores = opts.num_ores
@@ -292,13 +300,26 @@ function M.generate(opts)
     for _ = 1, max_attempts do
         local grid, count = M.pack(size, oriented, random)
         local neighbors = M.adjacency(grid, size)
-        local colors = M.color(count, neighbors, num_ores, random)
+        local colors = M.color(count, neighbors, num_ores)
         if colors then
+            -- Map colors -> ores. Lowest-first coloring makes the highest color the rarest,
+            -- so pin it to the last ore (stone) to keep sand scarce; permute the remaining
+            -- colors among the remaining ores for per-seed variety in which ore dominates.
+            local ore_of = {}
+            local perm = {}
+            for i = 1, num_ores - 1 do perm[i] = i end
+            for i = num_ores - 1, 2, -1 do
+                local j = random(i)
+                perm[i], perm[j] = perm[j], perm[i]
+            end
+            for c = 1, num_ores - 1 do ore_of[c] = perm[c] end
+            ore_of[num_ores] = num_ores
+
             local ore_grid = {}
             for x = 0, size - 1 do
                 ore_grid[x] = {}
                 for y = 0, size - 1 do
-                    ore_grid[x][y] = colors[grid[x][y]]
+                    ore_grid[x][y] = ore_of[colors[grid[x][y]]]
                 end
             end
             return ore_grid

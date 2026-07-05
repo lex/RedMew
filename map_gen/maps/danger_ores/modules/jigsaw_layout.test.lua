@@ -47,22 +47,23 @@ for x = 0, PSIZE - 1 do
 end
 check(empty == 0, 'pack leaves no empty cells, empty=' .. empty)
 
--- no stray single-chunk pieces (monominoes) survive packing, at test and production sizes
-local function min_piece_size(g, sz)
+-- every piece is a valid tetromino: exactly 4 cells, at test and production sizes
+local function all_tetrominoes(g, sz)
     local sizes = {}
     for x = 0, sz - 1 do
         for y = 0, sz - 1 do
             sizes[g[x][y]] = (sizes[g[x][y]] or 0) + 1
         end
     end
-    local m = math.huge
-    for _, s in pairs(sizes) do if s < m then m = s end end
-    return m
+    local bad = 0
+    for _, s in pairs(sizes) do if s ~= 4 then bad = bad + 1 end end
+    return bad
 end
 for _, sz in ipairs({ 12, 32 }) do
     math.randomseed(sz)
     local pg = Layout.pack(sz, oriented, rand)
-    check(min_piece_size(pg, sz) >= 2, 'no 1-chunk pieces at size ' .. sz .. ', min=' .. min_piece_size(pg, sz))
+    check(all_tetrominoes(pg, sz) == 0, 'every piece is a 4-cell tetromino at size ' .. sz
+        .. ', non-tetromino=' .. all_tetrominoes(pg, sz))
 end
 
 math.randomseed(99)
@@ -82,7 +83,7 @@ check(identical, 'pack is deterministic for a fixed random sequence')
 math.randomseed(42)
 local cg, ccount = Layout.pack(PSIZE, oriented, rand)
 local nb = Layout.adjacency(cg, PSIZE)
-local colors = Layout.color(ccount, nb, 4, rand)
+local colors = Layout.color(ccount, nb, 4)
 check(colors ~= nil, 'color returns a valid 4-coloring')
 if colors then
     local bad = 0
@@ -133,7 +134,7 @@ do
     math.randomseed(3)
     local g32, c32 = Layout.pack(PROD, oriented, rand)
     local nb32 = Layout.adjacency(g32, PROD)
-    local col32 = Layout.color(c32, nb32, 4, rand)
+    local col32 = Layout.color(c32, nb32, 4)
     check(col32 ~= nil, 'color succeeds at size 32')
     if col32 then
         local bad, palette_seen = 0, {}
@@ -148,9 +149,11 @@ do
             end
         end
         check(bad == 0, 'no two touching pieces share an ore at size 32, violations=' .. bad)
+        -- stone (the 4th colour) is intentionally rare and may be absent on some seeds,
+        -- so the coloring uses at least 3 colours (all main ores) and never more than 4.
         local ore_types = 0
         for _ in pairs(palette_seen) do ore_types = ore_types + 1 end
-        check(ore_types == 4, 'all 4 ores present at size 32, got ' .. ore_types)
+        check(ore_types >= 3 and ore_types <= 4, 'uses 3-4 ores at size 32, got ' .. ore_types)
     end
 end
 
