@@ -126,47 +126,78 @@ function M.adjacency(grid, size)
     return neighbors
 end
 
--- Complete graph coloring via dynamic DSATUR vertex ordering + backtracking.
+-- Complete graph coloring via dynamic DSATUR with incremental saturation + backtracking.
 -- Returns colors[id] = 1..num_colors (no two adjacent pieces equal) or nil if impossible.
--- Color trial order prefers the least-used color so far to balance ore distribution;
--- ties in vertex selection are broken with the injected random for per-seed variety.
+-- Saturation and per-color neighbour counts are maintained incrementally (updated only for
+-- the neighbours of the vertex just (un)coloured), so vertex selection is cheap. Color trial
+-- order prefers the least-used color so far to balance ore distribution; ties in vertex
+-- selection break by degree then the injected random for per-seed variety.
 function M.color(count, neighbors, num_colors, random)
     local adj = {}
+    local deg = {}
     for id = 1, count do
-        adj[id] = {}
+        local a = {}
         local nb = neighbors[id]
         if nb then
-            for o in pairs(nb) do adj[id][#adj[id] + 1] = o end
+            for o in pairs(nb) do a[#a + 1] = o end
+        end
+        adj[id] = a
+        deg[id] = #a
+    end
+
+    local colors = {}   -- id -> color, or nil
+    local sat = {}      -- id -> number of distinct colors among its coloured neighbours
+    local ncolor = {}   -- id -> { [c] = number of neighbours currently coloured c }
+    for id = 1, count do
+        sat[id] = 0
+        local t = {}
+        for c = 1, num_colors do t[c] = 0 end
+        ncolor[id] = t
+    end
+    local used = {}     -- color -> times used (for ore balance)
+    for c = 1, num_colors do used[c] = 0 end
+
+    local uncolored = count
+    local SAFETY = 3000000 -- backtracking node ceiling (~1000x the near-linear DSATUR solve
+                           -- observed at size 32); fail-closed to nil so generate() retries.
+    local nodes = 0
+
+    local function assign(id, c)
+        colors[id] = c
+        used[c] = used[c] + 1
+        uncolored = uncolored - 1
+        for _, o in ipairs(adj[id]) do
+            if colors[o] == nil then
+                local nc = ncolor[o]
+                if nc[c] == 0 then sat[o] = sat[o] + 1 end
+                nc[c] = nc[c] + 1
+            end
         end
     end
 
-    local colors = {}
-    local used = {}
-    for c = 1, num_colors do used[c] = 0 end
-    local uncolored = count
-    local SAFETY = 3000000
-    local nodes = 0
+    local function unassign(id, c)
+        for _, o in ipairs(adj[id]) do
+            if colors[o] == nil then
+                local nc = ncolor[o]
+                nc[c] = nc[c] - 1
+                if nc[c] == 0 then sat[o] = sat[o] - 1 end
+            end
+        end
+        colors[id] = nil
+        used[c] = used[c] - 1
+        uncolored = uncolored + 1
+    end
 
-    -- pick the uncolored vertex with the highest saturation (distinct neighbor colors),
-    -- breaking ties by degree, then randomly.
     local function pick()
         local best, best_sat, best_deg = nil, -1, -1
         for id = 1, count do
             if colors[id] == nil then
-                local seen = {}
-                local sat = 0
-                for _, o in ipairs(adj[id]) do
-                    local c = colors[o]
-                    if c and not seen[c] then
-                        seen[c] = true
-                        sat = sat + 1
-                    end
-                end
-                local deg = #adj[id]
-                if sat > best_sat
-                    or (sat == best_sat and deg > best_deg)
-                    or (sat == best_sat and deg == best_deg and random(2) == 1) then
-                    best, best_sat, best_deg = id, sat, deg
+                local s = sat[id]
+                local d = deg[id]
+                if s > best_sat
+                    or (s == best_sat and d > best_deg)
+                    or (s == best_sat and d == best_deg and random(2) == 1) then
+                    best, best_sat, best_deg = id, s, d
                 end
             end
         end
@@ -178,23 +209,16 @@ function M.color(count, neighbors, num_colors, random)
         nodes = nodes + 1
         if nodes > SAFETY then return false end
         local id = pick()
+        local nc = ncolor[id]
         local candidates = {}
         for c = 1, num_colors do
-            local ok = true
-            for _, o in ipairs(adj[id]) do
-                if colors[o] == c then ok = false break end
-            end
-            if ok then candidates[#candidates + 1] = c end
+            if nc[c] == 0 then candidates[#candidates + 1] = c end
         end
         sort(candidates, function(a, b) return used[a] < used[b] end)
         for _, c in ipairs(candidates) do
-            colors[id] = c
-            used[c] = used[c] + 1
-            uncolored = uncolored - 1
+            assign(id, c)
             if solve() then return true end
-            colors[id] = nil
-            used[c] = used[c] - 1
-            uncolored = uncolored + 1
+            unassign(id, c)
         end
         return false
     end
