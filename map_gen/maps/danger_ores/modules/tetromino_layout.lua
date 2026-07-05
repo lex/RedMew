@@ -4,8 +4,8 @@
 -- owns the seed (the Factorio builder passes the map-seeded generator; tests pass
 -- math.random).
 --
--- Packing produces ONLY valid tetrominoes (I/O/T/S/Z/L/J) with no gaps, by seeding a
--- trivial 2x4-block tiling and then randomizing it with local 2x4/4x2 flips (a standard
+-- Packing produces ONLY valid tetrominoes (all seven: I/O/T/S/Z/L/J) with no gaps, by
+-- seeding a trivial 4x4-block tiling and then randomizing it with local 4x4 flips (a standard
 -- approach for random tilings -- brute-force exact cover is intractable at this size).
 local sort = table.sort
 local concat = table.concat
@@ -114,17 +114,18 @@ function M.pack(size, oriented, random)
             tetros_rel[#tetros_rel + 1] = rel
         end
     end
-    local decomp24 = enumerate(2, 4, tetros_rel)
-    local decomp42 = enumerate(4, 2, tetros_rel)
+    -- All tilings of a 4x4 block by four tetrominoes. Using a 4x4 base (rather than 2x4) is
+    -- what lets all seven tetrominoes appear -- T, S and Z cannot pair-tile a 2x4 rectangle.
+    local decomp = enumerate(4, 4, tetros_rel)
 
     local grid = {}
     for x = 0, size - 1 do grid[x] = {}; for y = 0, size - 1 do grid[x][y] = 0 end end
     local nid = 0
 
-    -- Base tiling: fill 2x4 blocks, each with a random valid 2-tetromino decomposition.
-    for bx = 0, size - 1, 2 do
+    -- Base tiling: fill 4x4 blocks, each with a random valid 4-tetromino decomposition.
+    for bx = 0, size - 1, 4 do
         for by = 0, size - 1, 4 do
-            local d = decomp24[random(#decomp24)]
+            local d = decomp[random(#decomp)]
             for _, piece in ipairs(d) do
                 nid = nid + 1
                 for _, c in ipairs(piece) do grid[(bx + c[1]) % size][(by + c[2]) % size] = nid end
@@ -132,21 +133,22 @@ function M.pack(size, oriented, random)
         end
     end
 
-    -- Local flip shuffling: repeatedly pick a 2x4 or 4x2 window; if it currently holds
-    -- exactly two whole tetrominoes, re-tile it with a random decomposition. This mixes the
-    -- rigid base grid into an organic layout while staying a valid tetromino tiling.
-    local function try_flip(w, h, decomps)
+    -- Local flip shuffling: repeatedly pick a 4x4 window; if it currently holds exactly four
+    -- whole tetrominoes, re-tile it with a random decomposition. This mixes the rigid base
+    -- grid into an organic layout while staying a valid tetromino tiling.
+    local function try_flip()
         local x, y = random(size) - 1, random(size) - 1
         local counts, order = {}, {}
-        for i = 0, w - 1 do
-            for j = 0, h - 1 do
+        for i = 0, 3 do
+            for j = 0, 3 do
                 local id = grid[(x + i) % size][(y + j) % size]
                 if not counts[id] then counts[id] = 0; order[#order + 1] = id end
                 counts[id] = counts[id] + 1
             end
         end
-        if #order ~= 2 or counts[order[1]] ~= 4 or counts[order[2]] ~= 4 then return end
-        local d = decomps[random(#decomps)]
+        if #order ~= 4 then return end
+        for _, id in ipairs(order) do if counts[id] ~= 4 then return end end
+        local d = decomp[random(#decomp)]
         for _, piece in ipairs(d) do
             nid = nid + 1
             for _, c in ipairs(piece) do grid[(x + c[1]) % size][(y + c[2]) % size] = nid end
@@ -154,9 +156,7 @@ function M.pack(size, oriented, random)
     end
 
     local passes = size * size * 80
-    for _ = 1, passes do
-        if random(2) == 1 then try_flip(2, 4, decomp24) else try_flip(4, 2, decomp42) end
-    end
+    for _ = 1, passes do try_flip() end
 
     -- Renumber surviving piece ids to a contiguous 1..count range.
     local remap, count = {}, 0
