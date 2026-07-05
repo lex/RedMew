@@ -4,8 +4,8 @@ local palette = require 'map_gen.maps.danger_ores.config.tetromino_shapes'
 
 local floor = math.floor
 
-local CHUNK_SIZE = 32
-local SUPER_TILE = 32 -- in chunks; the layout repeats every SUPER_TILE chunks (~1 km)
+local CELL_SIZE = 64  -- tiles per grid cell; each tetromino is 4 cells (32 = 1 chunk; 64 = 2x larger, 48 = 1.5x)
+local SUPER_TILE = 32 -- layout cells per super-tile; pattern repeats every SUPER_TILE*CELL_SIZE tiles
 
 return function(config)
     local main_ores = config.main_ores
@@ -28,8 +28,8 @@ return function(config)
         }
 
         local function tetrominoes(x, y, world)
-            local cx = floor(x / CHUNK_SIZE) % SUPER_TILE
-            local cy = floor(y / CHUNK_SIZE) % SUPER_TILE
+            local cx = floor(x / CELL_SIZE) % SUPER_TILE
+            local cy = floor(y / CELL_SIZE) % SUPER_TILE
             local index = ore_grid[cx][cy]
             return shapes[index](x, y, world)
         end
