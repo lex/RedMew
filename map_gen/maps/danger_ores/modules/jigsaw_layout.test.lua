@@ -47,6 +47,24 @@ for x = 0, PSIZE - 1 do
 end
 check(empty == 0, 'pack leaves no empty cells, empty=' .. empty)
 
+-- no stray single-chunk pieces (monominoes) survive packing, at test and production sizes
+local function min_piece_size(g, sz)
+    local sizes = {}
+    for x = 0, sz - 1 do
+        for y = 0, sz - 1 do
+            sizes[g[x][y]] = (sizes[g[x][y]] or 0) + 1
+        end
+    end
+    local m = math.huge
+    for _, s in pairs(sizes) do if s < m then m = s end end
+    return m
+end
+for _, sz in ipairs({ 12, 32 }) do
+    math.randomseed(sz)
+    local pg = Layout.pack(sz, oriented, rand)
+    check(min_piece_size(pg, sz) >= 2, 'no 1-chunk pieces at size ' .. sz .. ', min=' .. min_piece_size(pg, sz))
+end
+
 math.randomseed(99)
 local g1 = Layout.pack(PSIZE, oriented, rand)
 math.randomseed(99)

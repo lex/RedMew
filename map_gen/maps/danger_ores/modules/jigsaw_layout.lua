@@ -103,7 +103,54 @@ function M.pack(size, oriented, random)
             end
         end
     end
-    return grid, id
+
+    -- Dissolve stray single-chunk pieces (monominoes): merge each into an orthogonally
+    -- adjacent piece so no lone 1x1 squares remain. A monomino's four neighbours all
+    -- belong to other pieces, so a merge target always exists. Deterministic (no random);
+    -- re-coloring later keeps borders clean.
+    local size_of = {}
+    for pid = 1, id do size_of[pid] = 0 end
+    for x = 0, size - 1 do
+        for y = 0, size - 1 do
+            size_of[grid[x][y]] = size_of[grid[x][y]] + 1
+        end
+    end
+    for x = 0, size - 1 do
+        for y = 0, size - 1 do
+            local pid = grid[x][y]
+            if size_of[pid] == 1 then
+                local neigh = {
+                    grid[(x + 1) % size][y], grid[(x - 1) % size][y],
+                    grid[x][(y + 1) % size], grid[x][(y - 1) % size],
+                }
+                for _, other in ipairs(neigh) do
+                    if other ~= pid then
+                        grid[x][y] = other
+                        size_of[other] = size_of[other] + 1
+                        size_of[pid] = 0
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    -- Renumber surviving piece ids to a contiguous 1..count range.
+    local remap = {}
+    local count = 0
+    for x = 0, size - 1 do
+        for y = 0, size - 1 do
+            local pid = grid[x][y]
+            local new = remap[pid]
+            if not new then
+                count = count + 1
+                new = count
+                remap[pid] = new
+            end
+            grid[x][y] = new
+        end
+    end
+    return grid, count
 end
 
 -- neighbors[id] = { other_id = true, ... } over the torus (4-adjacency).
