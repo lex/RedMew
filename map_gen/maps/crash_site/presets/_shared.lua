@@ -24,23 +24,33 @@ local CORE_INFO = {
     '- Biters and spitters spawn on death of entities.'
 }
 
+-- Normalize a string / array / nil into an array of lines.
+local function as_lines(v)
+    if v == nil then
+        return {}
+    elseif type(v) == 'string' then
+        return { v }
+    end
+    return v
+end
+
 -- Set a crash-site preset's GUI info: map name, description and the extra-info panel.
--- opts.description overrides the shared default; opts.intro is a lead line prepended
--- before the core lines (the "A Venice map version of Crash Site." style); opts.extra
--- is an array of lines appended after the core (map-specific notes).
+-- opts.description overrides the shared default; opts.intro is a line (or array of lines)
+-- prepended before the core lines (the "A Venice map version of Crash Site." style);
+-- opts.extra is a line (or array) appended after the core (map-specific notes).
 function Public.set_info(name, opts)
     opts = opts or {}
     ScenarioInfo.set_map_name(name)
     ScenarioInfo.set_map_description(opts.description or DEFAULT_DESCRIPTION)
 
     local lines = {}
-    if opts.intro then
-        lines[#lines + 1] = opts.intro
+    for _, line in ipairs(as_lines(opts.intro)) do
+        lines[#lines + 1] = line
     end
     for _, line in ipairs(CORE_INFO) do
         lines[#lines + 1] = line
     end
-    for _, line in ipairs(opts.extra or {}) do
+    for _, line in ipairs(as_lines(opts.extra)) do
         lines[#lines + 1] = line
     end
     ScenarioInfo.add_map_extra_info('\n    ' .. table.concat(lines, '\n    ') .. '\n    ')
