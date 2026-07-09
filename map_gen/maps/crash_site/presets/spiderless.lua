@@ -1,6 +1,6 @@
 local MGSP = require 'resources.map_gen_settings'
-local ScenarioInfo = require 'features.gui.info'
-local Event = require 'utils.event'
+local Scenario = require 'map_gen.maps.crash_site.scenario'
+local Info = require 'map_gen.maps.crash_site.presets._shared'
 
 local config = {
     scenario_name = 'crashsite-spiderless',
@@ -12,27 +12,12 @@ local config = {
         MGSP.ore_oil_none,
         MGSP.enemy_none,
         MGSP.cliff_none
-    }
+    },
+    disabled_technologies = { 'spidertron' }
 }
 
-local Scenario = require 'map_gen.maps.crash_site.scenario'
-ScenarioInfo.set_map_name('Crashsite - Spiderless')
-ScenarioInfo.set_map_description('Capture outposts and defend against the biters.')
-ScenarioInfo.add_map_extra_info(
-    [[
-    - Outposts have enemy turrets defending them.
-    - Outposts have loot and provide a steady stream of resources.
-    - Outpost markets to purchase items and outpost upgrades.
-    - Capturing outposts increases evolution.
-    - Reduced damage by all player weapons, turrets, and ammo.
-    - Biters have more health and deal more damage.
-    - Biters and spitters spawn on death of entities.
-    - Spidertrons are disabled.
-    ]]
-)
-
-Event.on_init(function()
-  game.forces.player.technologies['spidertron'].enabled = false
-end)
+Info.set_info('Crashsite - Spiderless', {
+    extra = { '- Spidertrons are disabled.' }
+})
 
 return Scenario.init(config)

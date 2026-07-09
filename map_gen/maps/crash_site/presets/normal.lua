@@ -1,5 +1,6 @@
 local MGSP = require 'resources.map_gen_settings'
-local ScenarioInfo = require 'features.gui.info'
+local Scenario = require 'map_gen.maps.crash_site.scenario'
+local Info = require 'map_gen.maps.crash_site.presets._shared'
 
 local config = {
     scenario_name = 'crashsite',
@@ -14,18 +15,6 @@ local config = {
     }
 }
 
-local Scenario = require 'map_gen.maps.crash_site.scenario'
-ScenarioInfo.set_map_name('Crashsite')
-ScenarioInfo.set_map_description('Capture outposts and defend against the biters.')
-ScenarioInfo.add_map_extra_info(
-    [[
-    - Outposts have enemy turrets defending them.
-    - Outposts have loot and provide a steady stream of resources.
-    - Outpost markets to purchase items and outpost upgrades.
-    - Capturing outposts increases evolution.\n- Reduced damage by all player weapons, turrets, and ammo.
-    - Biters have more health and deal more damage.
-    - Biters and spitters spawn on death of entities.
-    ]]
-)
+Info.set_info('Crashsite')
 
 return Scenario.init(config)
