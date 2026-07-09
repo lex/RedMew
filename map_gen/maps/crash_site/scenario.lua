@@ -233,6 +233,11 @@ local function init(config)
     local mini_middle = math.ceil(mini_grid_number_of_blocks / 2)
 
     local active_outpost_types = config.active_outpost_types or all_outpost_types_active()
+    -- presets can switch specific outpost types off by name instead of mutating the
+    -- shared all_outpost_types_active table
+    for _, name in ipairs(config.disabled_outpost_types or {}) do
+        active_outpost_types[name] = false
+    end
 
     local stage1a_list = config.stage1a_list or {
         'small_iron_plate_factory',
@@ -962,6 +967,21 @@ end
 
 local map
 
+-- Presets disable robots/lasers/etc. by listing technology names in their config
+-- (config.disabled_technologies) instead of hand-writing an Event.on_init per preset.
+-- Applied once at init to the player force; missing names are skipped. (Recipe disables
+-- that must survive their unlocking research stay as on_research_finished handlers in
+-- the presets that need them -- disabling a recipe at init would be undone by research.)
+local function apply_disabled_items(config)
+    local technologies = game.forces.player.technologies
+    for _, name in ipairs(config.disabled_technologies or {}) do
+        local tech = technologies[name]
+        if tech then
+            tech.enabled = false
+        end
+    end
+end
+
 Global.register_init(
     {},
     function(tbl)
@@ -978,6 +998,8 @@ Global.register_init(
         local seed = RS.get_surface().map_gen_settings.seed
         tbl.outpost_seed = outpost_seed or seed
         tbl.ore_seed = ore_seed or seed
+
+        apply_disabled_items(configuration)
     end,
     function(tbl)
         outpost_seed = tbl.outpost_seed
