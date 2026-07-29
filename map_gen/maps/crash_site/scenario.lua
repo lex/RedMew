@@ -19,6 +19,7 @@ local MGSP = require 'resources.map_gen_settings'
 local RedmewConfig = require 'config'
 local Cutscene = require 'map_gen.maps.crash_site.cutscene'
 local cutscene_surface_settings = require 'map_gen.maps.crash_site.cutscene_surface_settings'
+local Roster = require 'map_gen.maps.crash_site.enemy_roster'
 
 local degrees = math.degrees
 local cutscene_force_name = 'cutscene'
@@ -653,22 +654,20 @@ local function init(config)
     outposts = b.if_else(outposts, mini_outposts)
     --outposts = mini_outposts
 
-    local spawners = {
-        'biter-spawner',
-        'spitter-spawner'
-    }
+    -- The whole map outside the safe radius is enemy territory. Which enemies fill it comes from
+    -- the roster so that a preset can move the map to another planet; see enemy_roster.lua.
+    local spawners = Roster.spawners
+    local worms = Roster.worms
+    local spawner_count = #spawners
+    local worm_count = #worms
 
-    local worms = {
-        'small-worm-turret',
-        'medium-worm-turret',
-        'big-worm-turret',
-        'behemoth-worm-turret'
-    }
+    local spawner_multiplier = Roster.spawner_chance_multiplier
+    local worm_multiplier = Roster.worm_chance_multiplier
 
-    local max_spawner_chance = 1 / 256
-    local spawner_chance_factor = 1 / (256 * 512)
-    local max_worm_chance = 1 / 64
-    local worm_chance_factor = 1 / (40 * 512)
+    local max_spawner_chance = (1 / 256) * spawner_multiplier
+    local spawner_chance_factor = (1 / (256 * 512)) * spawner_multiplier
+    local max_worm_chance = (1 / 64) * worm_multiplier
+    local worm_chance_factor = (1 / (40 * 512)) * worm_multiplier
 
     --local scale_factor = 1 / 32
 
@@ -681,42 +680,46 @@ local function init(config)
     end ]]
         local spawner_chance = d - 120
 
-        if spawner_chance > 0 then
+        if spawner_count > 0 and spawner_chance > 0 then
             spawner_chance = spawner_chance * spawner_chance_factor
             spawner_chance = math.min(spawner_chance, max_spawner_chance)
 
             if math.random() < spawner_chance then
-                return {name = spawners[math.random(2)]}
+                -- Force is explicit because a roster may scatter units rather than nests, and
+                -- create_entity would not put those on the enemy force by itself.
+                return {name = spawners[math.random(spawner_count)], force = 'enemy'}
             end
         end
 
         local worm_chance = d - 120
 
-        if worm_chance > 0 then
+        if worm_count > 0 and worm_chance > 0 then
             worm_chance = worm_chance * worm_chance_factor
             worm_chance = math.min(worm_chance, max_worm_chance)
 
             if math.random() < worm_chance then
                 if d < 256 then
-                    return {name = 'small-worm-turret'}
+                    return {name = worms[1], force = 'enemy'}
                 else
+                    -- Tiers are clamped to the roster length so shorter rosters still ramp up
+                    -- with distance. With the four Nauvis worms this is unchanged.
                     local max_lvl
                     local min_lvl
                     if d < 512 then
-                        max_lvl = 2
+                        max_lvl = math.min(2, worm_count)
                         min_lvl = 1
                     elseif d < 768 then
-                        max_lvl = 3
-                        min_lvl = 2
+                        max_lvl = math.min(3, worm_count)
+                        min_lvl = math.min(2, worm_count)
                     else
-                        max_lvl = 4
-                        min_lvl = 2
+                        max_lvl = worm_count
+                        min_lvl = math.min(2, worm_count)
                     end
                     local lvl = math.random() ^ (384 / d) * max_lvl
                     lvl = math.ceil(lvl)
                     --local lvl = math.floor(d / 256) + 1
-                    lvl = math.clamp(lvl, min_lvl, 4)
-                    return {name = worms[lvl]}
+                    lvl = math.clamp(lvl, min_lvl, worm_count)
+                    return {name = worms[lvl], force = 'enemy'}
                 end
             end
         end
@@ -957,6 +960,14 @@ local function init(config)
     local bounds = config.bounds_shape or b.rectangle(grid_block_size * (grid_number_of_blocks) + 1)
     map = b.choose(bounds, map, b.empty_shape)
 
+    -- Terrain painter: lets a preset own every tile the map generator would otherwise have
+    -- produced, which is how the planet maps get their Fulgoran/Gleban ground without depending
+    -- on that planet's noise expressions being valid for a custom map gen. See terrain.lua.
+    local terrain = config.terrain
+    if terrain then
+        map = terrain(map)
+    end
+
     return map
 end
 
@@ -968,8 +979,9 @@ Global.register_init(
         game.create_force(cutscene_force_name)
 
         -- Sprites for the spawn chests. Is there a better place for these?
-        rendering.draw_sprite{sprite = "item.poison-capsule", target = {3.5, -8.5}, surface = game.surfaces["redmew"], tint={1, 1, 1, 0.1}}
-        rendering.draw_sprite{sprite = "item.explosive-rocket", target = {-4.5, -8.5}, surface = game.surfaces["redmew"], tint={1, 1, 1, 0.1}}
+        local redmew_surface = RS.get_surface()
+        rendering.draw_sprite{sprite = "item.poison-capsule", target = {3.5, -8.5}, surface = redmew_surface, tint={1, 1, 1, 0.1}}
+        rendering.draw_sprite{sprite = "item.explosive-rocket", target = {-4.5, -8.5}, surface = redmew_surface, tint={1, 1, 1, 0.1}}
 
         local surface = game.surfaces[1]
         surface.map_gen_settings = {width = 2, height = 2}

@@ -33,6 +33,14 @@ local maps = {
         display_name = 'Desert'
     },
     {
+        name = 'crashsite-fulgora',
+        display_name = 'Fulgora (Space Age)'
+    },
+    {
+        name = 'crashsite-gleba',
+        display_name = 'Gleba (Space Age)'
+    },
+    {
         name = 'crashsite-manhattan',
         display_name = 'Manhattan'
     },

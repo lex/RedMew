@@ -16,6 +16,7 @@ local PlayerStats = require 'features.player_stats'
 local Restart = require 'features.restart_command'
 local Poll = require 'features.gui.poll'
 local MapPoll = require 'map_gen.maps.crash_site.map_poll'
+local Roster = require 'map_gen.maps.crash_site.enemy_roster'
 local set_timeout_in_ticks = Task.set_timeout_in_ticks
 local format_number = require 'util'.format_number
 
@@ -43,39 +44,17 @@ function Public.control(config)
         spy_message_cooldown = tbl.spy_message_cooldown
     end)
 
-    local static_entities_to_check = {
-        'spitter-spawner',
-        'biter-spawner',
-        'small-worm-turret',
-        'medium-worm-turret',
-        'big-worm-turret',
-        'behemoth-worm-turret',
-        'gun-turret',
-        'laser-turret',
-        'artillery-turret',
-        'flamethrower-turret'
-    }
-
-    local biter_entities_to_check = {
-        'small-spitter',
-        'medium-spitter',
-        'big-spitter',
-        'behemoth-spitter',
-        'small-biter',
-        'medium-biter',
-        'big-biter',
-        'behemoth-biter'
-    }
-
     local function count_enemy_entities()
         local get_entity_count = game.forces["enemy"].get_entity_count
         local entity_count = 0;
+        local static_entities_to_check = Roster.static_entities_to_check
         for i = 1, #static_entities_to_check do
             local name = static_entities_to_check[i]
             entity_count = entity_count + get_entity_count(name)
         end
-        for i = 1, #biter_entities_to_check do
-            local name = biter_entities_to_check[i]
+        local mobile_entities_to_check = Roster.mobile_entities_to_check
+        for i = 1, #mobile_entities_to_check do
+            local name = mobile_entities_to_check[i]
             entity_count = entity_count + get_entity_count(name)
         end
         return entity_count
@@ -89,7 +68,9 @@ function Public.control(config)
         ['crashsite-arrakis'] = 'Crash Site Arrakis',
         ['crashsite-venice'] = 'Crash Site Venice',
         ['crashsite-manhattan'] = 'Crash Site Manhattan',
-        ['crashsite-UK'] = 'Crash Site United Kingdom'
+        ['crashsite-UK'] = 'Crash Site United Kingdom',
+        ['crashsite-fulgora'] = 'Crash Site Fulgora',
+        ['crashsite-gleba'] = 'Crash Site Gleba'
     }
 
     local function can_restart(player)
@@ -99,6 +80,7 @@ function Public.control(config)
 
         local get_entity_count = game.forces["enemy"].get_entity_count
         -- Check how many of each turrets, worms and spawners are left and return false if there are any of each left.
+        local static_entities_to_check = Roster.static_entities_to_check
         for i = 1, #static_entities_to_check do
             local name = static_entities_to_check[i]
             if get_entity_count(name) > 0 then

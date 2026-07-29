@@ -78,6 +78,10 @@ local redmew_surface_name = 'redmew'
 local set_difficulty_settings_called
 local set_map_gen_settings_called
 local set_map_settings_called
+-- Space Age planet the redmew surface should be associated with, if any. Set at require time by
+-- the map preset, read on init, so it survives save/load the same way the settings components do.
+local planet_name
+local pollution_override
 local data = {
     ['map_gen_settings_components'] = {},
     ['map_settings_components'] = {},
@@ -205,6 +209,38 @@ local function get_or_create_surface()
     end
 end
 
+--- Ties the redmew surface to a Space Age planet.
+-- The surface keeps its own map gen settings (so the map file stays in control of terrain), but
+-- gains the planet's mechanics: day/night cycle, solar multiplier, pollutant type, and for
+-- Fulgora the lightning storms. Association is used rather than LuaPlanet.create_surface() so
+-- that the surface keeps the 'redmew' name every other module expects.
+local function associate_planet(surface)
+    if not planet_name then
+        return
+    end
+
+    local planets = game.planets
+    local planet = planets and planets[planet_name]
+    if not planet then
+        log(format('redmew_surface: planet "%s" does not exist, is Space Age enabled? Continuing without planet association.', planet_name))
+        return
+    end
+
+    -- associate_surface errors if either side is already spoken for, and refuses planets that
+    -- use entities_require_heating (Aquilo).
+    if planet.surface then
+        log(format('redmew_surface: planet "%s" already has a surface, skipping association.', planet_name))
+    elseif surface.planet then
+        log(format('redmew_surface: surface "%s" is already associated with a planet, skipping association.', surface.name))
+    else
+        planet.associate_surface(surface)
+    end
+
+    if pollution_override then
+        surface.override_pollution_type = pollution_override
+    end
+end
+
 local function initialize_surface()
     local surface = global_data.surface
     if not surface then
@@ -238,6 +274,10 @@ local function create_scenario_surface()
     end
 
     global_data.surface = get_or_create_surface()
+
+    -- Must happen before initialize_surface generates the first chunks so that the planet's
+    -- properties are in place for everything that gets built on them.
+    associate_planet(global_data.surface)
 
     if config.difficulty then
         set_difficulty_settings()
@@ -309,6 +349,23 @@ function Public.set_map_settings(components)
     end
     combine_settings(components, data.map_settings_components)
     set_map_settings_called = true
+end
+
+--- Associates the redmew surface with a Space Age planet, giving the map that planet's
+-- mechanics without handing it that planet's terrain generator.
+-- Requires the space-age mod; without it the call is logged and ignored.
+-- Note that Aquilo cannot be associated this way as it uses entities_require_heating.
+-- @param name <string> planet name, ex. 'fulgora'
+function Public.set_planet(name)
+    planet_name = name
+end
+
+--- Overrides the pollutant the surface uses.
+-- Needed on planets whose prototype sets no pollutant_type (Fulgora), where surface.pollute()
+-- would otherwise silently do nothing.
+-- @param pollutant <string> airborne pollutant name, ex. 'pollution'
+function Public.set_pollution_override(pollutant)
+    pollution_override = pollutant
 end
 
 --- Returns the LuaSurface that the map is created on.

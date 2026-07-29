@@ -64,6 +64,10 @@ local artillery_outposts = {index = 1}
 local outpost_count = 0
 local base_pollution_multiplier = 10
 local pollution_multiplier = {value = 10}
+-- Optional extra cost applied whenever an outpost hands over product, on top of the pollution.
+-- Set at require time by a map preset (see features/fulgora_lightning.lua), so a plain module
+-- local is enough - it is re-registered on every load.
+local production_pressure_handler
 
 Global.register(
     {
@@ -1315,6 +1319,14 @@ local function get_pollution_multiplier(_, player)
     player.print('Current pollution multiplier is: '..pollution_multiplier.value)
 end
 
+--- Registers an extra cost for taking product out of an outpost.
+-- Called for every batch a magic crafter hands over, with (entity, count). Pollution is still
+-- applied as normal; this is for planets that want a second, native pressure on top of it.
+-- @param token <number> Token.register'd function(entity, count)
+function Public.set_production_pressure_handler(token)
+    production_pressure_handler = token
+end
+
 local function do_magic_crafters()
     local limit = #magic_crafters
     if limit == 0 then
@@ -1354,6 +1366,9 @@ local function do_magic_crafters()
                     local pollution_amount = pollution_multiplier.value * 0.01
                     local pollution_position = {0,0}
                     entity.surface.pollute(pollution_position, pollution_amount)
+                    if production_pressure_handler then
+                        Token.get(production_pressure_handler)(entity, fcount)
+                    end
                     output_inv.insert {name = data.item, count = fcount}
                 end
                 data.last_tick = tick - (count - fcount) / rate

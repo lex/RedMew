@@ -12,6 +12,7 @@ local draw_multi_line = CS_Rendering.draw_multi_line_text
 local rad = math.rad
 local Rendering = require 'utils.rendering'
 local Settings = require 'utils.redmew_settings'
+local RS = require 'map_gen.shared.redmew_surface'
 
 local auto_play_cutscene_setting_name = 'crashsite.auto_play_cutscene'
 
@@ -299,8 +300,9 @@ local function terminate_function_outpost(player_index)
     if (not valid(player)) then
         return
     end
-    local pos = game.surfaces.redmew.find_non_colliding_position('character', {0, 0}, 0, 1)
-    player.teleport(pos, 'redmew')
+    local surface = RS.get_surface()
+    local pos = surface.find_non_colliding_position('character', {0, 0}, 0, 1)
+    player.teleport(pos, surface)
     PC.show_start_up(player)
     player.print({'crashsite.replay_cutscene', '/replay'}, {color = Color.yellow})
 end
