@@ -27,3 +27,21 @@ jobs:
           # URL to the luacheckrc configuration file to be used during checking.
           # Per https://github.com/Roang-zero1/factorio-mod-luacheck/issues/2 - an empty string will use the project's .luacheckrc
           luacheckrc_url: "" # optional, default is https://raw.githubusercontent.com/Nexela/Factorio-luacheckrc/0.17/.luacheckrc
+
+    # Standalone unit tests: every *.test.lua file is a self-contained suite that stubs out
+    # whatever it needs and runs outside Factorio. Suites that need a real surface or the
+    # Factorio API live in *_tests.lua instead and are run in game with /test-runner.
+    - name: Install Lua
+      uses: leafo/gh-actions-lua@v10
+      with:
+        luaVersion: "5.2"
+
+    - name: Unit tests
+      run: |
+        status=0
+        while read -r file; do
+          echo "== $file"
+          lua "$file" || status=1
+        done < <(find . -name '*.test.lua' | sort)
+        exit $status
+      shell: bash
