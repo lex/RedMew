@@ -8,9 +8,10 @@
 #        run-all.sh ~/factorio danger-ore-rivers crashsite
 #
 # JOBS is how many run at once (default one per CPU, and no more than fit in the free memory at
-# about 512 MB each; a server peaks at around 400 MB). SHARD=i/n runs every nth template from
-# the ith, which is how CI splits them over parallel jobs. RESULTS_DIR is where each template's
-# results and log go (default a temporary folder). SEED and SPEED are passed on to run-tests.sh.
+# about 512 MB each; a server peaks at around 400 MB). MATCH and EXCLUDE are regular expressions
+# for the names of the templates to run and to leave out, which is how CI runs a game mode per
+# job. RESULTS_DIR is where each template's results and log go (default a temporary folder).
+# SEED and SPEED are passed on to run-tests.sh.
 #
 # Exits non-zero if any test fails or any run doesn't finish.
 set -euo pipefail
@@ -40,17 +41,14 @@ else
     done
 fi
 
-if [ -n "${SHARD:-}" ]; then
-    shard=${SHARD%/*}
-    shards=${SHARD#*/}
-    selected=()
-    for i in "${!templates[@]}"; do
-        if [ $((i % shards)) -eq $((shard - 1)) ]; then
-            selected+=("${templates[$i]}")
-        fi
-    done
-    templates=("${selected[@]}")
-fi
+selected=()
+for template in "${templates[@]}"; do
+    if [[ -n "${MATCH:-}" && ! $template =~ $MATCH ]] || [[ -n "${EXCLUDE:-}" && $template =~ $EXCLUDE ]]; then
+        continue
+    fi
+    selected+=("$template")
+done
+templates=("${selected[@]}")
 
 echo "running ${#templates[@]} templates, $jobs at a time"
 run_one() {

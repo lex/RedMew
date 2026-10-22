@@ -8,9 +8,10 @@
 #        run-all.ps1 ~/factorio danger-ore-rivers crashsite
 #
 # JOBS is how many run at once (default one per CPU, and no more than fit in the free memory at
-# about 512 MB each; a server peaks at around 400 MB). SHARD=i/n runs every nth template from
-# the ith, which is how CI splits them over parallel jobs. RESULTS_DIR is where each template's
-# results and log go (default a temporary folder). SEED and SPEED are passed on to run-tests.ps1.
+# about 512 MB each; a server peaks at around 400 MB). MATCH and EXCLUDE are regular expressions
+# for the names of the templates to run and to leave out, which is how CI runs a game mode per
+# job. RESULTS_DIR is where each template's results and log go (default a temporary folder).
+# SEED and SPEED are passed on to run-tests.ps1.
 #
 # Exits non-zero if any test fails or any run doesn't finish.
 param(
@@ -41,12 +42,9 @@ if (-not $Templates) {
             Sort-Object Name | ForEach-Object Name)
 }
 
-if ($env:SHARD) {
-    $shard, $shards = $env:SHARD -split '/' | ForEach-Object { [int]$_ }
-    $Templates = @(for ($i = 0; $i -lt $Templates.Count; $i++) {
-            if ($i % $shards -eq $shard - 1) { $Templates[$i] }
-        })
-}
+$Templates = @($Templates | Where-Object {
+        (-not $env:MATCH -or $_ -cmatch $env:MATCH) -and -not ($env:EXCLUDE -and $_ -cmatch $env:EXCLUDE)
+    })
 
 "running $($Templates.Count) templates, $jobs at a time"
 $runTests = Join-Path $PSScriptRoot 'run-tests.ps1'

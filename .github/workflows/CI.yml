@@ -29,18 +29,25 @@ jobs:
           luacheckrc_url: "" # optional, default is https://raw.githubusercontent.com/Nexela/Factorio-luacheckrc/0.17/.luacheckrc
 
   # In-game tests (*_tests.lua, run by utils/test) on headless Factorio servers: every scenario
-  # template's map runs the whole suite (see .github/scripts/run-all.ps1), split over a few jobs
-  # that run at once. A failing test doesn't fail these jobs; the "in-game test results" check
-  # below sums them all up, every test grouped by map, and fails if any test did.
+  # template's map runs the whole suite (see .github/scripts/run-all.ps1), a game mode per job,
+  # by template name; new templates of a game mode join its job, and any others go to "Other
+  # maps". A failing test doesn't fail these jobs; the "in-game test results" check below sums
+  # them all up, every test grouped by map, and fails if any test did.
   ingame-tests:
-    name: in-game tests (${{ matrix.shard }}/4)
+    name: in-game tests (${{ matrix.name }})
     runs-on: ubuntu-latest
     env:
       FACTORIO_VERSION: "2.0.77"
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        include:
+        - name: Danger Ores
+          match: "^danger-ore"
+        - name: Crash Site
+          match: "^crashsite"
+        - name: Other maps
+          exclude: "^(danger-ore|crashsite)"
 
     steps:
     - uses: actions/checkout@v4
@@ -61,7 +68,8 @@ jobs:
     - name: In-game tests
       shell: pwsh
       env:
-        SHARD: ${{ matrix.shard }}/4
+        MATCH: ${{ matrix.match }}
+        EXCLUDE: ${{ matrix.exclude }}
         JOBS: 8
         RESULTS_DIR: results
       # the summary is the results check's to write
@@ -73,7 +81,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: ingame-test-results-${{ matrix.shard }}
+        name: ingame-test-results-${{ strategy.job-index }}
         path: results
 
   ingame-test-results:
