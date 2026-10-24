@@ -206,7 +206,8 @@ local function init(config)
 
     local outpost_random = Random.new(outpost_seed, outpost_seed * 2)
 
-    local outpost_builder = OutpostBuilder.new(outpost_random)
+    -- outposts are placed in one of four random orientations unless a preset turns it off
+    local outpost_builder = OutpostBuilder.new(outpost_random, config.rotate_outposts ~= false)
 
     if on_init then
         game.create_surface('cutscene', cutscene_surface_settings)

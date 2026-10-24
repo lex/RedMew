@@ -169,13 +169,103 @@ local function fast_remove(tbl, index)
     tbl[count] = nil
 end
 
+-- Clockwise rotation of a cell index in a square grid by r quarter-turns. Content at
+-- (x, y) moves to (size + 1 - y, x) per turn, the same convention as make_4_way's rotations.
+local function rotate_index(i, size, r)
+    local x = (i - 1) % size + 1
+    local y = floor((i - 1) / size) + 1
+
+    for _ = 1, r % 4 do
+        x, y = size + 1 - y, x
+    end
+
+    return (y - 1) * size + x
+end
+
+-- Turns a wall cell's direction bits with the grid. The section bits (straight,
+-- outer corner, inner corner) keep their meaning under rotation.
+local function rotate_wall(block, r)
+    local dir = (get_4_way_direction(block) + r) % 4
+    local rest = bit32.band(block, bit32.bnot(direction_bit_mask))
+    return bit32.bor(rest, bit32.lshift(dir, direction_bit_shift))
+end
+
+local function rotate_grid(blocks, r)
+    local size = blocks.size
+    local rotated = {size = size}
+
+    for i = 1, size * size do
+        local block = blocks[i]
+        if block ~= nil then
+            -- wall cells have level 1 (interior cells hold plain level numbers,
+            -- fill/do_levels start at 2); their direction lives in the high bits
+            if get_level(block) == 1 then
+                block = rotate_wall(block, r)
+            end
+            rotated[rotate_index(i, size, r)] = block
+        end
+    end
+
+    return rotated
+end
+
+-- Cache of rotated copies of shared template parts, keyed by part then by quarter-turn.
+local rotated_parts = setmetatable({}, {__mode = 'k'})
+
+-- Clockwise rotation of a template part (a dense part_size² lookup table, possibly
+-- inheriting its entries and properties through __index). Entity directions turn with
+-- it; string properties (factory, market, turret callbacks, force, part_size) resolve
+-- through the __index chain to the original part.
+local function rotate_part(part, r)
+    if part == nil or r == 0 then
+        return part
+    end
+
+    local cache = rotated_parts[part]
+    if cache == nil then
+        cache = {}
+        rotated_parts[part] = cache
+    end
+
+    local rotated = cache[r]
+    if rotated ~= nil then
+        return rotated
+    end
+
+    local size = part.part_size or default_part_size
+    rotated = setmetatable({}, {__index = part})
+
+    for i = 1, size * size do
+        local entry = part[i]
+        local j = rotate_index(i, size, r)
+
+        if entry == nil or entry == false then
+            -- block the __index fallback so original entries don't leak through unrotated
+            rotated[j] = false
+        elseif entry.entity then
+            local entity = {}
+            for k, v in pairs(entry.entity) do
+                entity[k] = v
+            end
+            entity.direction = ((entity.direction or 0) + r * 4) % 16
+            rotated[j] = {entity = entity, tile = entry.tile}
+        else
+            rotated[j] = {tile = entry.tile}
+        end
+    end
+
+    cache[r] = rotated
+
+    return rotated
+end
+
 local Public = {}
 Public.__index = Public
 
 Public.empty_template = {}
 
-function Public.new(random)
-    local obj = {random = random}
+function Public.new(random, rotate)
+    local obj = {random = random, rotate = rotate ~= false}
 
     return setmetatable(obj, Public)
 end
@@ -642,7 +732,7 @@ local function get_template(random, templates, templates_count, counts)
     return template
 end
 
-local function make_blocks(self, blocks, template)
+local function make_blocks(self, blocks, template, rotation)
     local random = self.random
     local counts = {}
 
@@ -688,7 +778,7 @@ local function make_blocks(self, blocks, template)
 
                 fast_remove(level, index)
 
-                blocks[i] = get_template(random, base_templates, base_template_count, counts)
+                blocks[i] = rotate_part(get_template(random, base_templates, base_template_count, counts), rotation)
             end
         else
             for index = 1, #level do
@@ -815,8 +905,15 @@ function Public:do_outpost(template, on_init)
 
     do_walls(self, blocks, settings.variance, settings.min_step)
     fill(blocks)
+
+    local rotation = 0
+    if self.rotate then
+        rotation = self.random:next_int(0, 3)
+        blocks = rotate_grid(blocks, rotation)
+    end
+
     do_levels(blocks, settings.max_level)
-    make_blocks(self, blocks, template)
+    make_blocks(self, blocks, template, rotation)
 
     return to_shape(blocks, settings.part_size, on_init)
 end
