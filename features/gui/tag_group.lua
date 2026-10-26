@@ -100,32 +100,11 @@ local function change_player_tag(player, tag_name, silent)
     return true
 end
 
-local function get_size(players, show_offline)
-    local size = 0
-
-    if not players then
-        return size
-    end
-
-    if show_offline then
-        size = table.size(players)
-    else
-        for pi, _ in pairs(players) do
-            local player = game.get_player(pi)
-            if player and player.valid and player.connected then
-                size = size + 1
-            end
-        end
-    end
-
-    return size
-end
-
 local main_button_name = Gui.uid_name()
 local main_frame_name = Gui.uid_name()
 local main_frame_content_name = Gui.uid_name()
 local tag_button_name = Gui.uid_name()
-local tag_label_name = Gui.uid_name()
+local edit_mode_button_name = Gui.uid_name()
 local clear_button_name = Gui.uid_name()
 local create_tag_button_name = Gui.uid_name()
 local edit_tag_button_name = Gui.uid_name()
@@ -163,68 +142,64 @@ local function player_removed(event)
     end
 end
 
-local function draw_main_frame_content(parent)
-    local player = parent.gui.player
-    local grid = parent.add { type = 'table', column_count = 1 }
-    grid.style.vertical_spacing = 2
+-- The names of a tag's members who are online, each in their color, for its tooltip.
+local function online_members(players)
+    local names = {}
+    if not players then
+        return names
+    end
 
-    local can_edit = Rank.equal_or_greater_than(player.name, Ranks.regular)
+    for index in pairs(players) do
+        local p = game.get_player(index)
+        if p and p.valid and p.connected then
+            local color = p.color
+            names[#names + 1] = ('[color=%.2f,%.2f,%.2f]%s[/color]'):format(0.4 + 0.6 * color.r, 0.4 + 0.6 * color.g, 0.4 + 0.6 * color.b, p.name)
+        end
+    end
+    return names
+end
+
+-- One row per tag, clicked to join it (or to leave the player's own, which is shown toggled), with
+-- its online members counted after its name and listed in its tooltip. In edit mode each row also
+-- has a button to edit the tag.
+local function draw_main_frame_content(parent, editing)
+    local player = parent.gui.player
+    local list = parent.add { type = 'flow', direction = 'vertical' }
+    Gui.set_style(list, { vertical_spacing = 0 })
 
     for tag_name, tag_data in pairs(tag_groups) do
         local tag = '[' .. tag_name .. ']'
-        local players = player_tags[tag]
-
-        local size = get_size(players)
+        local members = online_members(player_tags[tag])
         local path = tag_data.path
 
-        local row = grid.add { type = 'table', column_count = 4 }
-        -- keep the names level with the buttons
-        for column = 1, 4 do
-            row.style.column_alignments[column] = 'middle-left'
-        end
+        local row = list.add { type = 'flow', direction = 'horizontal' }
+        Gui.set_style(row, { vertical_align = 'center' })
 
-        if can_edit then
-            local edit_button =
-                row.add {
+        if editing then
+            local edit_button = row.add {
                 type = 'sprite-button',
                 name = edit_tag_button_name,
                 sprite = 'utility/rename_icon',
                 tooltip = {'tag_group.edit_group'},
                 style = 'tool_button',
             }
-            edit_button.visible = can_edit
             Gui.set_data(edit_button, tag_name)
         end
 
-        local tag_button =
-            row.add {
-            type = 'sprite-button',
-            name = tag_button_name,
-            sprite = path,
-            tooltip = tag_name,
-            style = 'tool_button',
-            number = (size > 0) and size or nil,
-        }
-        Gui.set_data(tag_button, tag_name)
-
-        local tag_label = row.add { type = 'label', name = tag_label_name, caption = tag_name, style = 'semibold_caption_label' }
-        Gui.set_style(tag_label, { left_padding = 4, minimal_width = 120 })
-        Gui.set_data(tag_label, { tag_name = tag_name, path = path })
-
-        local list = row.add {type = 'flow', direction = 'horizontal'}
-        Gui.set_style(list, { minimal_width = 100 })
-
-        if players then
-            for k, _ in pairs(players) do
-                local p = game.get_player(k)
-                if p and p.valid and p.connected then
-                    local color = {r = 0.4 + 0.6 * p.color.r, g = 0.4 + 0.6 * p.color.g, b = 0.4 + 0.6 * p.color.b}
-
-                    local label = list.add {type = 'label', caption = game.get_player(k).name}
-                    Gui.set_style(label, { top_padding = 8, font_color = color })
-                end
-            end
+        local caption = { '', '[img=' .. path .. '] ', tag_name }
+        if #members > 0 then
+            caption[#caption + 1] = '  (' .. #members .. ')'
         end
+        local tag_button = row.add {
+            type = 'button',
+            name = tag_button_name,
+            caption = caption,
+            tooltip = #members > 0 and concat(members, '\n') or nil,
+            style = 'list_box_item',
+            toggled = player.tag == tag,
+        }
+        Gui.set_style(tag_button, { horizontally_stretchable = true })
+        Gui.set_data(tag_button, { tag_name = tag_name, path = path })
     end
 end
 
@@ -271,7 +246,7 @@ local function draw_main_frame(player)
     }
     Gui.set_style(scroll_pane, { horizontally_stretchable = true, padding = 8 })
 
-    draw_main_frame_content(scroll_pane)
+    draw_main_frame_content(scroll_pane, false)
 
     local footer = inner_frame.add { type = 'frame', style = 'subfooter_frame' }
     Gui.set_style(footer, { horizontally_stretchable = true })
@@ -286,20 +261,34 @@ local function draw_main_frame(player)
         tooltip = {'tag_group.notify_tooltip'}
     }
 
-    Gui.set_data(main_frame, { notify_checkbox = notify_checkbox, content = scroll_pane })
+    -- regulars edit tags; their edit buttons show only in edit mode, so picking a tag stays simple
+    if Rank.equal_or_greater_than(player.name, Ranks.regular) then
+        Gui.add_pusher(footer)
+        local edit_mode_button = footer.add {
+            type = 'sprite-button',
+            name = edit_mode_button_name,
+            sprite = 'utility/rename_icon',
+            tooltip = {'tag_group.edit_group'},
+            style = 'tool_button',
+        }
+        Gui.set_data(edit_mode_button, main_frame)
+    end
+
+    Gui.set_data(main_frame, { notify_checkbox = notify_checkbox, content = scroll_pane, editing = false })
 end
 
 local function redraw_main_frame()
     for _, p in pairs(game.players) do
         local main_frame = Gui.get_panel(p, main_frame_name)
         if main_frame then
-            local content = Gui.get_data(main_frame).content
+            local data = Gui.get_data(main_frame)
+            local content = data.content
 
             Gui.remove_data_recursively(content)
             content.clear()
 
             if p.connected then
-                draw_main_frame_content(content)
+                draw_main_frame_content(content, data.editing)
             end
         end
     end
@@ -479,8 +468,9 @@ Gui.on_click(
     tag_button_name,
     function(event)
         local player = event.player
-        local tag_name = Gui.get_data(event.element)
-        local path = event.element.sprite
+        local data = Gui.get_data(event.element)
+        local tag_name = data.tag_name
+        local path = data.path
 
         if compare_tag(player, tag_name) then
             if change_player_tag(player, '') then
@@ -492,20 +482,6 @@ Gui.on_click(
         if change_player_tag(player, tag_name) then
             redraw_main_frame()
             redraw_main_button(player, path)
-        end
-    end
-)
-
-Gui.on_click(
-    tag_label_name,
-    function(event)
-        local data = Gui.get_data(event.element)
-        local tag_name = data.tag_name
-        local path = data.path
-
-        if change_player_tag(event.player, tag_name) then
-            redraw_main_frame()
-            redraw_main_button(event.player, path)
         end
     end
 )
@@ -593,6 +569,21 @@ Gui.on_click(
 )
 
 Gui.on_click(create_tag_button_name, draw_create_tag_frame)
+
+Gui.on_click(
+    edit_mode_button_name,
+    function(event)
+        local main_frame = Gui.get_data(event.element)
+        local data = Gui.get_data(main_frame)
+        data.editing = not data.editing
+        event.element.toggled = data.editing
+
+        local content = data.content
+        Gui.remove_data_recursively(content)
+        content.clear()
+        draw_main_frame_content(content, data.editing)
+    end
+)
 
 Gui.on_click(
     create_tag_icon_type_name,
