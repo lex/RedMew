@@ -127,7 +127,7 @@ local function player_created(event)
         {
             name = main_button_name,
             type = 'sprite-button',
-            sprite = 'utility/bookmark',
+            sprite = 'virtual-signal/signal-white-flag',
             tooltip = {'tag_group.tooltip'},
             auto_toggle = true,
         }
@@ -199,7 +199,7 @@ local function draw_main_frame_content(parent, editing)
             toggled = player.tag == tag,
         }
         Gui.set_style(tag_button, { horizontally_stretchable = true })
-        Gui.set_data(tag_button, { tag_name = tag_name, path = path })
+        Gui.set_data(tag_button, { tag_name = tag_name })
     end
 end
 
@@ -291,16 +291,6 @@ local function redraw_main_frame()
                 draw_main_frame_content(content, data.editing)
             end
         end
-    end
-end
-
-local function redraw_main_button(player, path)
-    local main_button = Gui.get_top_element(player, main_button_name)
-
-    if (path == '') or (path == nil) or (not helpers.is_valid_sprite_path(path)) then
-        main_button.sprite = 'utility/bookmark'
-    else
-        main_button.sprite = path
     end
 end
 
@@ -470,7 +460,6 @@ Gui.on_click(
         local player = event.player
         local data = Gui.get_data(event.element)
         local tag_name = data.tag_name
-        local path = data.path
 
         if compare_tag(player, tag_name) then
             if change_player_tag(player, '') then
@@ -481,7 +470,6 @@ Gui.on_click(
 
         if change_player_tag(player, tag_name) then
             redraw_main_frame()
-            redraw_main_button(player, path)
         end
     end
 )
@@ -507,10 +495,6 @@ Gui.on_click(
         for _, player in pairs(game.players) do
             if player.valid and player.tag == tag then
                 change_player_tag(player, '')
-
-                if player.connected then
-                    redraw_main_button(player, '')
-                end
             end
         end
 
@@ -563,7 +547,6 @@ Gui.on_click(
     function(event)
         if change_player_tag(event.player, '') then
             redraw_main_frame()
-            redraw_main_button(event.player, '')
         end
     end
 )
@@ -705,10 +688,6 @@ Gui.on_click(
                 for _, p in pairs(game.players) do
                     if p.valid and p.tag == old_tag then
                         change_player_tag(p, tag_name, true)
-
-                        if p.connected then
-                            redraw_main_button(player, '')
-                        end
                     end
                 end
 

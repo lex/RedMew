@@ -534,7 +534,7 @@ local pages = {
             end
 
             if config.tag_group.enabled then
-                softmod_sprite(grid, 'utility/bookmark')
+                softmod_sprite(grid, 'virtual-signal/signal-white-flag')
                 local tag = grid.add {type = 'label', caption = {'info.softmods_tags_label'}, style = 'heading_2_label'}
                 tag.style.font = 'var'
                 local tag_label = grid.add {type = 'label', caption = {'info.softmods_tags_text'}}
