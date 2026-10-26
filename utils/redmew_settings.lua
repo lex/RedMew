@@ -49,6 +49,9 @@ Public.types = {
 ---
 --- This function must be called in the control stage, i.e. not inside an event.
 ---
+--- The default may be a function(player_index), for a default that depends on the player's other
+--- settings.
+---
 ---@param name string
 ---@param setting_type string
 ---@param default any
@@ -151,13 +154,13 @@ function Public.get(player_index, name)
     end
 
     local player_settings = memory[player_index]
-    if not player_settings then
-        return setting.default
-    end
-
-    local player_setting = player_settings[name]
+    local player_setting = player_settings and player_settings[name]
     if player_setting == nil then
-        return setting.default
+        local default = setting.default
+        if type(default) == 'function' then
+            return default(player_index)
+        end
+        return default
     end
 
     return player_setting

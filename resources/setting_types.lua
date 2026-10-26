@@ -11,6 +11,14 @@ local floor = math.floor
 
 local color_key_table = {'r', 'g', 'b', 'a'}
 
+-- the darkest a chat color may be, by its perceived brightness
+local min_chat_brightness = 50
+
+local function chat_brightness(color)
+    local r, g, b = color.r, color.g, color.b
+    return floor(sqrt(0.241 * r * r + 0.691 * g * g + 0.068 * b * b))
+end
+
 local function to_valid_rgba_table(input_table)
     local output = {
         r = input_table.r or input_table[1] or 0,
@@ -260,16 +268,26 @@ return {
                 return true, nil
             end
 
-            local r, g, b = value.r, value.g, value.b
-
-            local brightness = sqrt(0.241 * r * r + 0.691 * g * g + 0.068 * b * b)
-            brightness = floor(brightness)
-
-            if brightness < 50 then
+            if chat_brightness(value) < min_chat_brightness then
                 return false, {'redmew_settings_util.chat_color_too_dark'}
             end
 
             return true, value
+        end,
+        --- A color made light enough for chat, keeping its hue: a color too dark is brightened just
+        --- past the limit, black to a dark grey. Takes any color the color type takes.
+        readable = function(input)
+            local _, value = color_sanitizer(input)
+            local brightness = chat_brightness(value)
+            if brightness >= min_chat_brightness then
+                return value
+            end
+            if brightness == 0 then
+                return {r = min_chat_brightness, g = min_chat_brightness, b = min_chat_brightness, a = value.a}
+            end
+            -- a little past the limit, so rounding down doesn't land under it
+            local scale = (min_chat_brightness + 1) / brightness
+            return {r = floor(value.r * scale), g = floor(value.g * scale), b = floor(value.b * scale), a = value.a}
         end
     }
 }

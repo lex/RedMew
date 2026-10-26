@@ -11,6 +11,7 @@ local main_button_name = Gui.uid_name()
 local save_changes_button_name = Gui.uid_name()
 local main_frame_name = Gui.uid_name()
 local fraction_slider_name = Gui.uid_name()
+local hiding_checkbox_name = Gui.uid_name()
 
 local Public = {}
 
@@ -80,6 +81,13 @@ local function show_fraction(slider)
     Gui.get_data(slider).caption = floor(slider.slider_value * 100 + 0.5) .. ' %'
 end
 
+-- a ticked setting that hides another, like the shared chat color, hides that setting's row
+local function show_hidden_row(checkbox)
+    local row = Gui.get_data(checkbox)
+    row.label.visible = not checkbox.state
+    row.container.visible = not checkbox.state
+end
+
 local function set_element_value(element, value)
     if element.type == 'text-box' then
         element.text = tostring(value)
@@ -92,6 +100,9 @@ local function set_element_value(element, value)
     end
     if element.type == 'checkbox' then
         element.state = value
+        if element.name == hiding_checkbox_name then
+            show_hidden_row(element)
+        end
         return
     end
 end
@@ -172,11 +183,22 @@ local function draw_main_frame(player)
 
         data[name] = {
             label = label,
+            container = input_container,
             input = input,
             previous_value = value,
             color_picker = color_picker,
             unset = color_picker and raw_value == nil,
         }
+    end
+
+    for name, setting in pairs(settings) do
+        local hidden = setting.hides and data[setting.hides]
+        if hidden then
+            local checkbox = data[name].input
+            checkbox.name = hiding_checkbox_name
+            Gui.set_data(checkbox, hidden)
+            show_hidden_row(checkbox)
+        end
     end
 
     local buttons = Gui.add_dialog_buttons(
@@ -215,6 +237,10 @@ local function save_changes(event)
     local values = {}
 
     for name, element_data in pairs(data) do
+        -- a hidden setting keeps what it was
+        if not element_data.container.visible then
+            goto continue
+        end
         local input = element_data.input
         local label = element_data.label
         local value = get_element_value(element_data)
@@ -235,6 +261,7 @@ local function save_changes(event)
             input.parent.tooltip = ''
         end
         values[name] = value
+        ::continue::
     end
 
     if errors_count > 0 then
@@ -308,6 +335,9 @@ Gui.on_click(main_button_name, toggle)
 Gui.on_click(save_changes_button_name, save_changes)
 Gui.on_value_changed(fraction_slider_name, function(event)
     show_fraction(event.element)
+end)
+Gui.on_checked_state_changed(hiding_checkbox_name, function(event)
+    show_hidden_row(event.element)
 end)
 Event.add(defines.events.on_player_created, player_created)
 Event.add(defines.events.on_player_joined_game, player_joined)
