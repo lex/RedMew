@@ -15,7 +15,7 @@ local function show_gui_for_player(player)
         type = 'button',
         name = main_button_name,
         caption = {'snake.name'}
-    })
+    }, 'snake')
 end
 
 local function player_created(event)

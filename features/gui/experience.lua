@@ -534,7 +534,7 @@ local function on_player_created(event)
         type = 'sprite-button',
         sprite = 'entity/market',
         tooltip = { 'experience.gui_experience_button_tip' },
-    })
+    }, 'experience')
     gui_toggled[player.index] = {
         bonuses = true,
         rewards = false,

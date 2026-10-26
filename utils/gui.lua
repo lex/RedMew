@@ -2,6 +2,7 @@ local Token = require 'utils.token'
 local Event = require 'utils.event'
 local Global = require 'utils.global'
 local Styles = require 'resources.styles'
+local TopBar = require 'resources.top_bar'
 local mod_gui = require '__core__.lualib.mod-gui'
 --[[
     player.gui.top.mod_gui_top_frame.mod_gui_inner_frame[element_name]
@@ -153,27 +154,102 @@ function Gui.get_top_flow(player)
     return mod_gui.get_button_flow(player)
 end
 
+-- each top button id's group (an index in resources/top_bar.lua) and place in it
+local top_group_by_id = {}
+local top_place_by_id = {}
+for group, ids in ipairs(TopBar) do
+    for place, id in ipairs(ids) do
+        top_group_by_id[id] = group
+        top_place_by_id[id] = place
+    end
+end
+
+--- The panels of the top bar: mod-gui's own first, then the groups that have a button.
+---@param player LuaPlayer
+---@return LuaGuiElement[]
+local function get_top_panels(player)
+    local panels = { Gui.get_top_flow(player) }
+    for _, child in pairs(Gui.get_top_flow(player).parent.children) do
+        if child.tags.redmew_top_group then
+            panels[#panels + 1] = child
+        end
+    end
+    return panels
+end
+
+-- The panel of a group in the top bar, made the first time a button goes in it, between the
+-- groups before and after it.
+local function get_top_group_panel(player, group)
+    local bar = Gui.get_top_flow(player).parent
+    local name = 'redmew_top_group_' .. group
+    local panel = bar[name]
+    if panel then
+        return panel
+    end
+
+    local index
+    for i, child in pairs(bar.children) do
+        local other = child.tags.redmew_top_group
+        if other and other > group then
+            index = i
+            break
+        end
+    end
+    panel = bar.add { type = 'frame', name = name, style = 'mod_gui_inside_deep_frame', index = index, tags = { redmew_top_group = group } }
+    -- a gap between groups, like the game's shortcut bar
+    Gui.set_style(panel, { left_margin = 4 })
+    return panel
+end
+
 ---@param player LuaPlayer
 ---@param element_name string
 ---@return LuaGuiElement?
 function Gui.get_top_element(player, element_name)
-	return Gui.get_top_flow(player)[element_name]
+    for _, panel in pairs(get_top_panels(player)) do
+        local element = panel[element_name]
+        if element then
+            return element
+        end
+    end
+    return nil
 end
 
+--- Adds a button (or another element) to the top bar. With an id from resources/top_bar.lua it
+--- goes in that id's group, in its place; without one, in mod-gui's own panel at the end.
 ---@param player LuaPlayer
 ---@param child table
+---@param id string?
 ---@return LuaGuiElement
-function Gui.add_top_element(player, child)
-    local flow = Gui.get_top_flow(player)
-    local element = flow[child.name]
+function Gui.add_top_element(player, child, id)
+    local element = Gui.get_top_element(player, child.name)
 	if element and element.valid then
         return element
 	end
+
+    local group = id and top_group_by_id[id]
+    if id and not group then
+        error('no top bar group has the id ' .. id .. ' (see resources/top_bar.lua)', 2)
+    end
+    local panel = group and get_top_group_panel(player, group) or Gui.get_top_flow(player)
+    if group then
+        -- each button keeps its place in its tags, for the buttons added after it
+        local place = top_place_by_id[id]
+        child.tags = child.tags or {}
+        child.tags.redmew_top_place = place
+        for i, sibling in pairs(panel.children) do
+            local other = sibling.tags.redmew_top_place
+            if other and other > place then
+                child.index = i
+                break
+            end
+        end
+    end
+
 	if (child.type == 'button' or child.type == 'sprite-button') and child.style == nil then
         child.style = Styles.default_top_element.name
-        return Gui.set_style(flow.add(child), Styles.default_top_element.style)
+        return Gui.set_style(panel.add(child), Styles.default_top_element.style)
     else
-        return flow.add(child)
+        return panel.add(child)
 	end
 end
 
@@ -747,35 +823,28 @@ Gui.on_click(
     function(event)
         local button = event.element
         local player = event.player
-        local top = Gui.get_top_flow(player)
+        local showing = button.caption ~= '<'
 
-        if button.caption == '<' then
-            for i = 1, #top_elements do
-                local name = top_elements[i]
-                local ele = top[name]
-                if ele and ele.valid then
-                    if ele.visible then
-                        custom_raise(on_pre_hidden_handlers, ele, player)
-                        ele.visible = false
-                    end
+        for i = 1, #top_elements do
+            local ele = Gui.get_top_element(player, top_elements[i])
+            if ele and ele.valid and ele.visible ~= showing then
+                if showing then
+                    ele.visible = true
+                    custom_raise(on_visible_handlers, ele, player)
+                else
+                    custom_raise(on_pre_hidden_handlers, ele, player)
+                    ele.visible = false
                 end
             end
-
-            button.caption = '>'
-        else
-            for i = 1, #top_elements do
-                local name = top_elements[i]
-                local ele = top[name]
-                if ele and ele.valid then
-                    if not ele.visible then
-                        ele.visible = true
-                        custom_raise(on_visible_handlers, ele, player)
-                    end
-                end
-            end
-
-            button.caption = '<'
         end
+
+        -- the groups' panels go too, rather than stay as empty boxes
+        local panels = get_top_panels(player)
+        for i = 2, #panels do
+            panels[i].visible = showing
+        end
+
+        button.caption = showing and '<' or '>'
     end
 )
 

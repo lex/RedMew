@@ -130,7 +130,7 @@ local function player_created(event)
             sprite = 'virtual-signal/signal-white-flag',
             tooltip = {'tag_group.tooltip'},
             auto_toggle = true,
-        }
+        }, 'tag_group'
     )
     b.style.padding = 2
 end

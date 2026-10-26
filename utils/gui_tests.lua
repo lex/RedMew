@@ -24,7 +24,11 @@ Declare.module({'utils', 'Gui'}, function()
         Declare.tags('skip-headless')
 
         local function count_gui_elements(player)
-            local roots = {Gui.get_top_flow(player), Gui.get_left_flow(player), player.gui.center, player.gui.screen}
+            local roots = {Gui.get_left_flow(player), player.gui.center, player.gui.screen}
+            -- every panel of the top bar: mod-gui's own and each group's
+            for _, panel in pairs(Gui.get_top_flow(player).parent.children) do
+                roots[#roots + 1] = panel
+            end
             local count = 0
             for _, root in pairs(roots) do
                 for _, child in pairs(root.children) do
@@ -50,7 +54,7 @@ Declare.module({'utils', 'Gui'}, function()
         for _, name in pairs(Gui._top_elements) do
             Declare.test(Gui.names and Gui.names[name] or name, function(context)
                 local player = context.player
-                local element = Gui.get_top_flow(player)[name]
+                local element = Gui.get_top_element(player, name)
 
                 -- Elements owned by other mods (see mod compatibility in utils/gui.lua) only
                 -- exist when those mods are active, skip the test when they don't.

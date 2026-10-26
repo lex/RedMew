@@ -769,7 +769,7 @@ local function player_created(event)
         sprite = 'item/programmable-speaker',
         tooltip = { 'poll.tooltip' },
         auto_toggle = true,
-    })
+    }, 'poll')
 end
 
 local function player_joined(event)

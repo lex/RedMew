@@ -28,7 +28,7 @@ local function player_created(event)
         name = main_button_name,
         sprite = 'item/iron-gear-wheel',
         tooltip = { 'redmew_settings_gui.tooltip' },
-    })
+    }, 'redmew_settings')
 end
 
 local function player_joined(event)

@@ -571,7 +571,7 @@ local function player_created(event)
         tooltip = { 'tasklist.tooltip' },
         number = #tasks or 0,
         auto_toggle = true,
-    })
+    }, 'tasklist')
 end
 
 local function player_joined(event)

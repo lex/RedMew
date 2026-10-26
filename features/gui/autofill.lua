@@ -28,7 +28,7 @@ local function player_created(event)
         sprite = 'item/piercing-rounds-magazine',
         tooltip = { 'autofill.main_button_tooltip' },
         auto_toggle = true,
-    })
+    }, 'autofill')
 end
 
 local function update_ammo_button(button, name, enabled)

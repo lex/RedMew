@@ -160,7 +160,7 @@ function Public.update_top_button(player)
     name = main_button_name,
     sprite = 'item/power-armor-mk2',
     tooltip = {'admin_panel.info_tooltip'},
-  })
+  }, 'admin_panel')
   button.visible = Rank.equal_or_greater_than(player.name, Ranks.moderator)
 end
 

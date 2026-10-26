@@ -195,7 +195,7 @@ local function player_created(event)
         sprite = 'item/refined-hazard-concrete',
         tooltip = { 'paint.tooltip' },
         auto_toggle = true,
-    })
+    }, 'paint')
     b.style.padding = 2
 end
 

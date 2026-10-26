@@ -99,7 +99,7 @@ function Public.on_player_created(player)
     name = main_button_name,
     sprite = 'item/selector-combinator',
     tooltip = {'player_shortcuts.info_tooltip'},
-  })
+  }, 'shortcuts')
   b.style.padding = 2
 end
 

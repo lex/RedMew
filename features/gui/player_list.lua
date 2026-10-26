@@ -715,7 +715,7 @@ local function player_created(event)
         sprite = 'entity/character',
         tooltip = { 'player_list.tooltip' },
         auto_toggle = true,
-    })
+    }, 'player_list')
 end
 
 local function player_removed(event)

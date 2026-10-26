@@ -7,7 +7,9 @@ own styles rather than setting sizes and colours.
 ## Where a GUI goes
 
 - **Top buttons** open everything else: `Gui.add_top_element` puts one in the row of buttons at
-  the top left (mod-gui).
+  the top left (mod-gui). The row is split into groups (people, your tools, game status, game
+  modes, admin), each in a panel of its own like the game's shortcut bar: pass the button's id
+  from `resources/top_bar.lua`, which lists the groups and their order, so it lands in its place.
 - **Side panels** are what a top button opens and leaves open while the player plays: polls,
   tasks, the player list, autofill. `Gui.add_panel` docks one in the column under the top
   buttons, with its title and a pin in a header. The pin floats the panel into a window the player

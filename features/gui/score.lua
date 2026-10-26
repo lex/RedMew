@@ -3,13 +3,10 @@ local Event = require 'utils.event'
 local Token = require 'utils.token'
 local Schedule = require 'utils.task'
 local Gui = require 'utils.gui'
-local Styles = require 'resources.styles'
-local Color = require 'resources.color_presets'
 local Server = require 'features.server'
 local ScoreTracker = require 'utils.score_tracker'
 local format_number = require 'util'.format_number
 local pairs = pairs
-local concat = table.concat
 local min = math.min
 local floor = math.floor
 local format = string.format
@@ -68,8 +65,8 @@ local function format_ticks_left(ticks)
     return {'time-symbol-minutes-short', math.max(minutes, 1)}
 end
 
----Creates a map of score name => {caption, tooltip, progress}, where progress (0 to 1) is only
----set for scores with a goal in storage.config.score.goals
+---Creates a map of score name => {icon, name, value, tooltip, progress}, where progress (0 to 1) is
+---only set for scores with a goal in storage.config.score.goals
 local function get_global_score_labels()
     local scores = ScoreTracker.get_global_scores_with_metadata(scores_to_show)
     local score_labels = {}
@@ -87,20 +84,30 @@ local function get_global_score_labels()
                 tooltip = {'', tooltip, '\n', {'score.goal_eta', format_ticks_left(ticks_left)}}
             end
             score_labels[score_data.name] = {
-                caption = concat({score_data.icon, format_number(value, true), '/', format_number(goal, true)}, ' '),
+                icon = score_data.icon,
+                name = score_data.locale_string,
+                value = format_number(value, true) .. ' / ' .. format_number(goal, true),
                 tooltip = tooltip,
                 progress = progress
             }
         else
             local tooltip = score_data.tooltip
             score_labels[score_data.name] = {
-                caption = concat({score_data.icon, format_number(value, true)}, ' '),
+                icon = score_data.icon,
+                name = score_data.locale_string,
+                value = format_number(value, true),
                 tooltip = tooltip and tooltip(value) or score_data.locale_string
             }
         end
     end
 
     return score_labels
+end
+
+-- A score's icon and value; its name is in its tooltip, as in the old strip in the top bar. A
+-- score without an icon shows its name instead.
+local function score_caption(textual_display)
+    return {'', textual_display.icon or {'', textual_display.name, ':'}, ' ', textual_display.value}
 end
 
 local do_redraw_score =
@@ -111,20 +118,17 @@ local do_redraw_score =
 
         for i = 1, #players do
             local player = players[i]
-            local frame = Gui.get_top_element(player, main_frame_name)
+            local frame = Gui.get_panel(player, main_frame_name)
 
             if frame and frame.valid then
-                local score_table = frame.score_table
+                local score_table = Gui.get_data(frame)
                 for score_name, textual_display in pairs(scores) do
-                    local element = score_table[score_name]
+                    local value = score_table[score_name]
+                    value.label.caption = score_caption(textual_display)
+                    value.label.tooltip = textual_display.tooltip
                     if textual_display.progress then
-                        element.label.caption = textual_display.caption
-                        element.label.tooltip = textual_display.tooltip
-                        element.bar.value = textual_display.progress
-                        element.bar.tooltip = textual_display.tooltip
-                    else
-                        element.caption = textual_display.caption
-                        element.tooltip = textual_display.tooltip
+                        value.bar.value = textual_display.progress
+                        value.bar.tooltip = textual_display.tooltip
                     end
                 end
             end
@@ -167,58 +171,29 @@ local function player_created(event)
             sprite = get_score_sprite(),
             tooltip = {'score.tooltip'},
             auto_toggle = true,
-        }
+        }, 'score'
     )
 end
 
-local function score_label_style(label, color)
-    local style = label.style
-    style.font = 'default-bold'
-    style.font_color = color
-end
+-- A side panel with each score's icon and value in a grid, a few to a row so it stays short, and for
+-- a score with a goal a progress bar toward it.
+local function score_show(player)
+    local frame, content = Gui.add_panel(player, { name = main_frame_name, caption = {'score.frame_title'}, toggle_name = main_button_name, width = 'narrow' })
 
-local function score_show(top)
-    local scores = get_global_score_labels()
-    local frame = top.add {
-        type = 'frame',
-        name = main_frame_name,
-        style = 'subheader_frame',
-        index = top[main_button_name].get_index_in_parent() + 1
-    }
-    frame.location = { x = 1, y = 38 }
-	Gui.set_style(frame, { natural_height = Styles.default_top_element.style.minimal_height, height = Styles.default_top_element.style.minimal_height, padding = 6 })
+    local score_table = content.add {type = 'table', column_count = 5}
+    Gui.set_style(score_table, {vertical_spacing = 4, horizontal_spacing = 16})
 
-    local score_table = frame.add {type = 'table', name = 'score_table', column_count = table_size(scores)}
-    local style = score_table.style
-    style.vertical_spacing = 4
-    style.horizontal_spacing = 16
-
-    for score_name, textual_display in pairs(scores) do
-        local parent = score_table
-        local label_name = score_name
+    for score_name, textual_display in pairs(get_global_score_labels()) do
+        local value = score_table.add {type = 'flow', name = score_name, direction = 'horizontal'}
+        Gui.set_style(value, {vertical_align = 'center', horizontal_spacing = 8})
+        value.add {type = 'label', name = 'label', caption = score_caption(textual_display), tooltip = textual_display.tooltip}
         if textual_display.progress then
-            -- a score with a goal shows its count next to a progress bar toward it
-            parent = score_table.add({type = 'flow', name = score_name, direction = 'horizontal'})
-            Gui.set_style(parent, {vertical_align = 'center', horizontal_spacing = 8})
-            label_name = 'label'
-        end
-
-        local label =
-            parent.add(
-            {
-                type = 'label',
-                name = label_name,
-                caption = textual_display.caption,
-                tooltip = textual_display.tooltip
-            }
-        )
-        score_label_style(label, Color.white)
-
-        if textual_display.progress then
-            local bar = parent.add({type = 'progressbar', name = 'bar', value = textual_display.progress, tooltip = textual_display.tooltip})
+            local bar = value.add {type = 'progressbar', name = 'bar', value = textual_display.progress, tooltip = textual_display.tooltip}
             Gui.set_style(bar, {width = 60})
         end
     end
+
+    Gui.set_data(frame, score_table)
 end
 
 local function global_score_changed(event)
@@ -253,13 +228,13 @@ Gui.on_click(
     main_button_name,
     function(event)
         local player = event.player
-        local top = Gui.get_top_flow(player)
-        local frame = top[main_frame_name]
+        local frame = Gui.get_panel(player, main_frame_name)
 
-        if not frame then
-            score_show(top)
+        if frame then
+            Gui.destroy(frame)
+            Gui.get_top_element(player, main_button_name).toggled = false
         else
-            frame.destroy()
+            score_show(player)
         end
     end
 )

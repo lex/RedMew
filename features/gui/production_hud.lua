@@ -342,7 +342,7 @@ Event.add(defines.events.on_player_created, function(event)
         type = 'sprite-button',
         sprite = 'utility/side_menu_production_icon',
         tooltip = { 'production_hud.feature_tooltip' },
-    })
+    }, 'production_hud')
 
     player_settings[player.index] = {
         precision_index = defines.flow_precision_index.ten_minutes,
