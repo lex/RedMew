@@ -1,7 +1,8 @@
 -- In-game tests for Switchback's belt rule (switchback.lua), on the Switchback map, on a scratch
 -- surface: the rules read belts as the game shapes them, a belt making a straight run too long is
 -- taken back, undergrounds end a run, a turn into a run that's too long is undone, and a belt
--- straightened by a removal is taken up.
+-- straightened by a removal is taken up. With blueprints banned, what is built from a blueprint
+-- in the hand is removed.
 --
 -- Builds are raised the way Factorio raises them. A robot build is "built" by a stand-in
 -- construction robot whose cargo captures the refund. Bending a belt built by hand needs a real
@@ -10,6 +11,7 @@ local Declare = require 'utils.test.declare'
 local Assert = require 'utils.test.assert'
 local Helper = require 'utils.test.helper'
 local EventFactory = require 'utils.test.event_factory'
+local DOC = require 'map_gen.maps.danger_ores.configuration'
 local Rules = require 'map_gen.maps.danger_ores.modules.switchback_rules'
 local Switchback = require 'map_gen.maps.danger_ores.modules.switchback'
 
@@ -339,4 +341,40 @@ Declare.module({'map_gen', 'danger ores', 'switchback', 'by hand'}, function()
         local ghosts = surface.find_entities_filtered({area = {{3, 4}, {5, 5}}, ghost_name = BELT})
         Assert.equal(2, #ghosts, 'ghosts beside the bend')
     end)
+
+    if DOC.switchback.no_blueprints then
+        Declare.test('what a player builds from a blueprint in their hand is removed', function(context)
+            -- Arrange: a blueprint of a chest in the player's hand
+            local player = context.player
+            set_belts(context, player, 0)
+            context:add_teardown(function()
+                player.clear_cursor()
+            end)
+            local cursor = player.cursor_stack
+            cursor.set_stack({name = 'blueprint'})
+            cursor.set_blueprint_entities({{entity_number = 1, name = 'iron-chest', position = {0.5, 0.5}}})
+            local area = {{2, 6}, {12, 12}}
+
+            -- Act
+            player.build_from_cursor({position = {6.5, 8.5}})
+
+            -- Assert
+            local ghosts = surface.count_entities_filtered({area = area, ghost_name = 'iron-chest'})
+            local chests = surface.count_entities_filtered({area = area, name = 'iron-chest'})
+            Assert.equal(0, ghosts + chests, 'chests and ghosts of chests built from the blueprint')
+        end)
+
+        Declare.test('what a player builds from their hand without a blueprint stays', function(context)
+            -- Arrange
+            local player = context.player
+            set_belts(context, player, 0)
+            local chest = build(surface, 'iron-chest', 6, 8)
+
+            -- Act
+            hand_builds(player, chest)
+
+            -- Assert
+            Assert.is_true(chest.valid, 'the chest built by hand was removed')
+        end)
+    end
 end)

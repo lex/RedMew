@@ -13,7 +13,9 @@
 -- Ghosts count as the belts they will be, so a planned bend holds while robots build it.
 --
 -- With `no_blueprints`, blueprints can't be made, imported, copied or pasted, so a solved layout
--- can't be stamped down again: RedMew's no_blueprints permissions, widened to all of these.
+-- can't be stamped down again: RedMew's no_blueprints permissions, widened to all of these. The
+-- permissions only apply in multiplayer, and a blueprint may still reach a player's hand some
+-- other way, so whatever is built from a blueprint in the hand is removed too.
 --
 -- Turned on for any Danger Ores map with DOC.switchback.enabled (see configuration.lua).
 local Config = require 'config'
@@ -38,9 +40,12 @@ local registered = false
 
 -- player index -> the bend the player's last belt made, kept until their next belt
 local bends = {}
+-- player index -> the tick a blueprint of theirs was last removed, to say so once a blueprint
+local blueprint_removed = {}
 
-Global.register(bends, function(tbl)
-    bends = tbl
+Global.register({bends = bends, blueprint_removed = blueprint_removed}, function(tbl)
+    bends = tbl.bends
+    blueprint_removed = tbl.blueprint_removed
 end)
 
 local Public = {}
@@ -362,6 +367,26 @@ local function on_ghost_removed(event)
     on_removed(event.ghost, event.player_index)
 end
 
+--- Removes what a player builds from a blueprint in their hand, a copy and paste included.
+-- Blueprints build ghosts, so there is nothing to hand back.
+local function on_built_from_blueprint(event)
+    local entity = event.entity
+    if not (entity and entity.valid) then
+        return
+    end
+    local player = game.get_player(event.player_index)
+    if not (player and player.is_cursor_blueprint()) then
+        return
+    end
+    local position = entity.position
+    entity.destroy({raise_destroy = true})
+    if blueprint_removed[player.index] ~= game.tick then
+        blueprint_removed[player.index] = game.tick
+        player.create_local_flying_text({text = {'danger_ores.switchback_no_blueprints'}, position = position})
+        player.play_sound({path = 'utility/cannot_build'})
+    end
+end
+
 --- @return how many belts a straight run may have
 function Public.get_limit()
     return settings.limit
@@ -406,6 +431,10 @@ function Public.register(config)
     Event.add(defines.events.on_player_mined_entity, on_mined)
     Event.add(defines.events.on_robot_mined_entity, on_mined)
     Event.add(defines.events.on_pre_ghost_deconstructed, on_ghost_removed)
+    if config and config.no_blueprints then
+        -- added last, so it runs first: handlers run in reverse order
+        Event.add(defines.events.on_built_entity, on_built_from_blueprint)
+    end
 end
 
 return Public
