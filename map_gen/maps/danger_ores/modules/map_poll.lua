@@ -95,6 +95,7 @@ local maps = {
     { name = 'danger-ore-spiral', display_name = 'Spiral (without void)', mod_pack = mod_packs.danger_ore_normal, tags = {tags.regular} },
     { name = 'danger-ore-split', display_name = 'Split (4x sectors)', mod_pack = mod_packs.danger_ore_normal, tags = {tags.regular} },
     { name = 'danger-ore-square', display_name = 'Square (corner start)', mod_pack = mod_packs.danger_ore_normal, tags = {tags.regular} },
+    { name = 'danger-ore-switchback', display_name = 'Switchback (no belt runs straight for more than 3)', mod_pack = mod_packs.danger_ore_normal, tags = {tags.regular} },
     { name = 'danger-ore-terraforming', display_name = 'Terraforming (default)', mod_pack = mod_packs.danger_ore_normal, tags = {tags.regular} },
     { name = 'danger-ore-tetrominoes', display_name = 'Tetrominoes (interlocking pieces)', mod_pack = mod_packs.danger_ore_normal, tags = {tags.regular} },
     { name = 'danger-ore-voronoi', display_name = 'Voronoi (organic cells)', mod_pack = mod_packs.danger_ore_normal, tags = {tags.regular} },

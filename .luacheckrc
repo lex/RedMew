@@ -801,10 +801,13 @@ stds.factorio_defines = {
                 },
                 build_check_type = {
                     fields = {
+                        'blueprint_ghost',
                         'ghost_place',
                         'ghost_revive',
                         'manual',
-                        'script'
+                        'manual_ghost',
+                        'script',
+                        'script_ghost'
                     }
                 },
                 chain_signal_state = {
