@@ -128,6 +128,16 @@ Public.register = function(danger_ores_config)
     -- show progress toward the win in the score bar
     Config.score.goals['satellites-launched'] = win_satellite_count
   end
+  if _C.switchback.enabled then
+    require 'map_gen.maps.danger_ores.modules.switchback'.register(_C.switchback)
+    ScenarioInfo.set_map_description(table.concat {
+      (ScenarioInfo.get_map_description():gsub('%s+$', '')),
+      '\n\n  No belt runs straight for more than ', _C.switchback.limit, ' [item=transport-belt]: every turn starts the count again.',
+      '\n  Drag a belt and it bends round by itself, taking two more belts from your inventory for each bend.',
+      '\n  [item=underground-belt] and [item=splitter] don\'t count, and a run ends at them.',
+      _C.switchback.no_blueprints and '\n  Blueprints can\'t be used, so every line is laid by hand.' or '',
+    })
+  end
   if _C.terraforming.enabled then
     terraforming(_C.terraforming)
   end

@@ -12,7 +12,11 @@
 --
 -- Ghosts count as the belts they will be, so a planned bend holds while robots build it.
 --
--- Usage, from a preset: require 'map_gen.maps.danger_ores.modules.switchback'.register({limit = 3})
+-- With `no_blueprints`, blueprints can't be made, imported, copied or pasted, so a solved layout
+-- can't be stamped down again: RedMew's no_blueprints permissions, widened to all of these.
+--
+-- Turned on for any Danger Ores map with DOC.switchback.enabled (see configuration.lua).
+local Config = require 'config'
 local Event = require 'utils.event'
 local Global = require 'utils.global'
 local RobotRefund = require 'map_gen.shared.robot_refund'
@@ -363,9 +367,35 @@ function Public.get_limit()
     return settings.limit
 end
 
---- @param config {limit = how many belts a straight run may have, 3 by default}
+local BLUEPRINT_ACTIONS = {
+    'activate_paste',
+    'alt_select_blueprint_entities',
+    'alternative_copy',
+    'copy',
+    'grab_blueprint_record',
+    'import_blueprint',
+    'import_blueprint_string',
+    'import_blueprints_filtered',
+    'import_permissions_string',
+    'open_blueprint_library_gui',
+    'open_blueprint_record',
+    'select_blueprint_entities',
+    'setup_blueprint',
+    'setup_single_blueprint_record',
+    'upgrade_opened_blueprint_by_record'
+}
+
+--- @param config {limit = how many belts a straight run may have (3 by default), no_blueprints = true to ban blueprints}
 function Public.register(config)
     settings.limit = config and config.limit or 3
+    if config and config.no_blueprints then
+        local actions = {}
+        for _, name in pairs(BLUEPRINT_ACTIONS) do
+            actions[defines.input_action[name]] = false
+        end
+        Config.permissions.presets.no_blueprints = true
+        Config.permissions.modes.no_blueprints = actions
+    end
     if registered then
         return
     end

@@ -50,6 +50,9 @@ Turned on from `configuration.lua` (all on by default unless noted):
   message on Discord, which names maps by their poll display name.
 - `map_poll`: the next-map poll.
 - `maze` and `radioactivity`: off by default.
+- `switchback`: off by default. No belt runs straight for more than `limit` belts; a belt built
+  by hand bends round instead, and blueprints are banned (`no_blueprints`). Any preset can turn it
+  on; the Switchback preset is the plain sectors with it.
 
 ## Rules that are easy to break
 

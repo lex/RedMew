@@ -72,6 +72,11 @@ return {
     win_satellite_count = 1000,
     win_satellite_quality = 'normal',
   },
+  switchback = {
+    enabled = false,
+    limit = 3,            -- the most belts a straight run may have
+    no_blueprints = true, -- blueprints can't be made, imported, copied or pasted
+  },
   terraforming = {
     enabled = true,
     start_size = 12 * 32,
