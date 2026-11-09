@@ -336,6 +336,24 @@ function Module.validate_player(player_ident)
     return player, player.name, player.index
 end
 
+--- Teleports a player's character (or whatever they physically are), not their map view.
+-- In remote view (the map, or an entity opened from it) LuaPlayer.teleport moves only the
+-- camera, so the player leaves remote view first.
+-- @param player <LuaPlayer>
+-- @param position <MapPosition>
+-- @param surface <SurfaceIdentification|nil> defaults to the player's physical surface
+-- @return <boolean> whether the player was teleported
+function Module.teleport_player(player, position, surface)
+    if player.controller_type == defines.controllers.remote then
+        player.exit_remote_view()
+        -- remote view can't be left in a rocket or on a space platform
+        if player.controller_type == defines.controllers.remote then
+            return false
+        end
+    end
+    return player.teleport(position, surface or player.physical_surface)
+end
+
 local non_breaking_space = '​' -- This is \u200B an invisible space charcater.
 local sensitive_characters_map = {
     ['\\'] = '\\\\',

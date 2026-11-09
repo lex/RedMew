@@ -181,4 +181,32 @@ Declare.module({
             end)
         end
     end)
+
+    Declare.module('teleport_player', function()
+        -- uses a player's character and remote view
+        Declare.tags('skip-headless')
+
+        Declare.test('moves the character, not the map view, in remote view', function(context)
+            -- Arrange: looking at the map somewhere else, as when a station is opened from the map
+            local player = context.player
+            local character = player.character
+            local start = character.position
+            local destination = {x = math.floor(start.x) + 30.5, y = math.floor(start.y) + 0.5}
+            player.set_controller {type = defines.controllers.remote, position = {start.x + 80, start.y + 80}}
+            context:add_teardown(function()
+                player.exit_remote_view()
+                character.teleport(start)
+            end)
+
+            -- Act
+            local teleported = Core.teleport_player(player, destination)
+
+            -- Assert
+            local where = serpent.line(character.position)
+            Assert.is_true(teleported, 'teleport_player should say it teleported the player')
+            Assert.equal(defines.controllers.character, player.controller_type, 'the player should have left remote view')
+            Assert.equal(destination.x, character.position.x, 'the character should be at the destination, not ' .. where)
+            Assert.equal(destination.y, character.position.y, 'the character should be at the destination, not ' .. where)
+        end)
+    end)
 end)
