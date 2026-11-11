@@ -40,10 +40,12 @@ Public.spawn_interval = 120
 -- tiles a tick
 Public.biter_speed = 0.1
 -- A biter's health is health_factor * health ^ health_exponent, health being the wave's below.
--- The exponent flattens the climb from the first wave to the last (from 150 to 45000 below, 13 to
--- 723 here), so towers, which come one a round, can keep up; the factor is the difficulty.
-Public.health_factor = 0.4
-Public.health_exponent = 0.7
+-- The exponent flattens the climb from the first wave to the last (from 150 to 45000 below, 109
+-- to 18500 here), so towers, which come one a round, can keep up; the factor is the difficulty.
+-- Played out on a headless server: a player who never tips starts leaking around the tenth wave;
+-- tipping three times a hand carries one through.
+Public.health_factor = 1.2
+Public.health_exponent = 0.9
 
 function Public.biter_health(wave)
     return Public.health_factor * wave.health ^ Public.health_exponent
