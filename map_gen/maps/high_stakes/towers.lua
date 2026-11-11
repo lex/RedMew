@@ -55,9 +55,9 @@ local function draw_label(tower)
     tower.label = rendering.draw_text {
         text = { '', Public.hand_name(tower.type), '\n', tower.text },
         surface = entity.surface,
-        target = { entity = entity, offset = { 0, -entity.tile_height / 2 - 1.2 } },
+        target = { entity = entity, offset = { 0, -entity.tile_height / 2 - 1.6 } },
         color = color,
-        scale = 1,
+        scale = 1.5,
         alignment = 'center',
         vertical_alignment = 'middle',
         use_rich_text = true
