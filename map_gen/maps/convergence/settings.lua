@@ -54,10 +54,12 @@ local function air_unit(wave)
     return 'destroyer'
 end
 
--- health of one of a wave's biters: 35 at first, a tenth more each wave (about 9800 by the 60th)
-local function health(wave)
-    return math.floor(35 * 1.1 ^ (wave - 1))
-end
+-- A biter's health: health_base at the first wave, health_growth times more each wave after
+-- (about 9700 by the 60th), times the wave's own health_scale (bosses and fliers). Played out on
+-- a headless server: one player alone with only gun towers holds every wave up to the 40s and
+-- runs out of lives around the 47th; with 80 at the first wave, three starting towers can't hold.
+Public.health_base = 60
+Public.health_growth = 1.09
 
 -- gold a wave's biter pays when killed
 local function bounty(wave)
@@ -74,7 +76,7 @@ for wave = 1, 60 do
         shielded = (wave % 5 == 0) and not boss,
         regen = regen_waves[wave] and 0.02 or nil,
         count = boss and Public.boss_size or Public.wave_size,
-        health = health(wave) * (boss and 12 or 1) * (air and 0.8 or 1),
+        health_scale = (boss and 12 or 1) * (air and 0.8 or 1),
         bounty = bounty(wave) * (boss and 12 or 1)
     }
     w.unit = air and air_unit(wave) or ground_unit(wave, boss)
@@ -83,7 +85,7 @@ end
 
 --- A biter's health in a wave, with the difficulty.
 function Public.biter_health(wave)
-    return Public.health_factor * Public.waves[wave].health
+    return Public.health_factor * Public.health_base * Public.health_growth ^ (wave - 1) * Public.waves[wave].health_scale
 end
 
 -- Towers ----------------------------------------------------------------------------------
